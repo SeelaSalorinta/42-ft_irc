@@ -1,4 +1,5 @@
 #include "Server.hpp"
+#include "Parser.hpp"
 
 #include <iostream>
 #include <cstring>
@@ -22,8 +23,8 @@ namespace
 	};
 }
 
-Server::Server(int port)
-	: _port(port), _listenFd(-1), _running(false)
+Server::Server(int port, const std::string &password)
+	: _port(port), _password(password), _listenFd(-1), _running(false)
 {
 }
 
@@ -31,6 +32,11 @@ Server::~Server()
 {
 	if (_listenFd != -1)
 		close(_listenFd);
+}
+
+const std::string& Server::getPassword() const
+{
+	return _password;
 }
 
 bool Server::setNonBlocking(int fd)
@@ -127,6 +133,9 @@ void Server::acceptNewClients()
 			continue;
 		}
 
+		 //create new client object
+		_clients[clientFd] = new Client(clientFd);
+
 		pollfd pfd;
 		pfd.fd = clientFd;
 		pfd.events = POLLIN;
@@ -142,6 +151,13 @@ void Server::handleClient(std::size_t index)
 	int fd = _pollFds[index].fd;
 	char buf[1024];
 
+	if (_clients.count(fd) == 0) {
+		dropClient(fd, "client not found");
+		return;
+	}
+	
+	Client* client = _clients[fd];
+	//read from socket
 	ssize_t n = recv(fd, buf, sizeof(buf), 0);
 	if (n <= 0)
 	{
@@ -149,12 +165,30 @@ void Server::handleClient(std::size_t index)
 			dropClient(fd, "recv error");
 		return;
 	}
+	// append new data to this client's buffer
+	client->_recvBuffer.append(buf, n);
+	while (true)
+	{
+		std::size_t pos = client->_recvBuffer.find("\n"); //add r later!! this for netcat
+		if (pos == std::string::npos)
+			break; // no complete line yet, wait for more data
 
-	ssize_t sent = send(fd, buf, static_cast<std::size_t>(n), 0);
+		// Take the line (without "\r\n")
+		std::string line = client->_recvBuffer.substr(0, pos);
+		// Remove that line + "\r\n" from the buffer
+		client->_recvBuffer.erase(0, pos + 1); //add +2 later !!! this is fr netcat fornow
+
+		if (line.empty())
+			continue;
+		processLine(*this, *client, line);
+	}
+
+	//IN COMMENTS FOR NOW
+	/*ssize_t sent = send(fd, buf, static_cast<std::size_t>(n), 0);
 	if (sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
 	{
 		dropClient(fd, "send error");
-	}
+	}*/
 }
 
 void Server::dropClient(int fd, const char *reason)

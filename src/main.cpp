@@ -23,9 +23,10 @@ int main(int argc, char **argv)
 		return EXIT_FAILURE;
 	}
 
+	std::string password = argv[2];
 	try
 	{
-		Server server(port);
+		Server server(port, password);
 		server.start();
 	}
 	catch (const std::exception &e)

@@ -4,22 +4,27 @@
 #include <vector>
 #include <string>
 #include <poll.h>
+#include <map>
+#include "Client.hpp"
 
 class Server
 {
 public:
-	explicit Server(int port);
+	explicit Server(int port, const std::string &password);
 	~Server();
 
 	void start();
+	const std::string &getPassword() const;
 
 private:
 	Server(const Server &);
 	Server &operator=(const Server &);
 
 	int _port;
+	std::string _password;
 	int _listenFd;
 	bool _running;
+
 	std::vector<struct pollfd> _pollFds;
 
 	void setupListeningSocket();
@@ -29,6 +34,8 @@ private:
 	void dropClient(int fd, const char *reason);
 
 	static bool setNonBlocking(int fd);
+
+	std::map<int, Client*> _clients; //servers clientS
 };
 
 #endif
