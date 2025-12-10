@@ -1,5 +1,4 @@
-#ifndef PARSER_HPP
-# define PARSER_HPP
+#pragma once
 
 #include <iostream>
 #include <sstream> // istringstream
@@ -18,5 +17,3 @@ struct	Command
 Command	parseCommand(const std::string &line);
 
 void	processLine(Server &server, Client &client, const std::string &line);
-
-#endif

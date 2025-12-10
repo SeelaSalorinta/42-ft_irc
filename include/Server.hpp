@@ -1,5 +1,4 @@
-#ifndef SERVER_HPP
-#define SERVER_HPP
+#pragma once
 
 #include <vector>
 #include <string>
@@ -9,33 +8,31 @@
 
 class Server
 {
-public:
-	explicit Server(int port, const std::string &password);
-	~Server();
+	private:
+		Server(const Server &);
+		Server &operator=(const Server &);
 
-	void start();
-	const std::string &getPassword() const;
+		int _port;
+		std::string _password;
+		int _listenFd;
+		bool _running;
 
-private:
-	Server(const Server &);
-	Server &operator=(const Server &);
+		std::vector<struct pollfd> _pollFds;
 
-	int _port;
-	std::string _password;
-	int _listenFd;
-	bool _running;
+		void setupListeningSocket();
+		void eventLoop();
+		void acceptNewClients();
+		void handleClient(std::size_t index);
+		void dropClient(int fd, const char *reason);
 
-	std::vector<struct pollfd> _pollFds;
+		static bool setNonBlocking(int fd);
 
-	void setupListeningSocket();
-	void eventLoop();
-	void acceptNewClients();
-	void handleClient(std::size_t index);
-	void dropClient(int fd, const char *reason);
+		std::map<int, Client*> _clients; //servers clientS
 
-	static bool setNonBlocking(int fd);
+		public:
+			explicit Server(int port, const std::string &password);
+			~Server();
 
-	std::map<int, Client*> _clients; //servers clientS
+			void start();
+			const std::string &getPassword() const;
 };
-
-#endif

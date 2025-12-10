@@ -1,4 +1,4 @@
-#include "Parser.hpp"
+#include "CommandHandler.hpp"
 #include "Server.hpp"
 #include "Client.hpp"
 
@@ -49,23 +49,26 @@ void	processLine(Server &server, Client &client, const std::string &line)
 	Command cmd = parseCommand(line);
 	if (cmd.name.empty())
 		return;
+	// ignoraa CAP (irssi lähettää CAP LS ekaks)
+	if (cmd.name == "CAP")
+		return;
 	if (cmd.name == "PASS")
 	{
 		if (cmd.params.size() != 1)
 		{
-			std::string msg = "ERROR: PASS command takes exactly one parameter\r\n";
+			std::string msg = "ERROR : PASS command takes exactly one parameter\r\n";
 			send(client._fd, msg.c_str(), msg.size(), 0);
 			return;
 		}
 		if (client._isRegistered || client._hasNick || client._hasUser)
 		{
-			std::string msg = "ERROR: You may not reregister\r\n";
+			std::string msg = "ERROR : You may not reregister\r\n";
 			send(client._fd, msg.c_str(), msg.size(), 0);
 			return;
 		}
 		if (cmd.params[0] != server.getPassword())
 		{
-			std::string msg = "ERROR: Password incorrect\r\n";
+			std::string msg = "ERROR : Password incorrect\r\n";
 			send(client._fd, msg.c_str(), msg.size(), 0);
 			// pitääkö drop client? eikai
 			return;
@@ -78,7 +81,7 @@ void	processLine(Server &server, Client &client, const std::string &line)
 	//ensin tarvtaan password
 	if (!client._hasPass)
 	{
-		std::string msg = "ERROR: You must send PASS before other commands\r\n";
+		std::string msg = "ERROR : You must send PASS before other commands\r\n";
 		send(client._fd, msg.c_str(), msg.size(), 0);
 		return;
 	}
@@ -86,7 +89,7 @@ void	processLine(Server &server, Client &client, const std::string &line)
 	{
 		if (cmd.params.size() != 1)
 		{
-			std::string msg = "ERROR: NICK command takes exactly one parameter\r\n";
+			std::string msg = "ERROR : NICK command takes exactly one parameter\r\n";
 			send(client._fd, msg.c_str(), msg.size(), 0);
 			return;
 		}
@@ -99,20 +102,51 @@ void	processLine(Server &server, Client &client, const std::string &line)
 	}
 	if (cmd.name == "USER")
 	{
+		if (cmd.params.size() != 4 || cmd.params[1] != "0"
+			|| cmd.params[2] != "*")
+		{
+			std::string msg = "ERROR : Usage : USER <username> 0 * :<real name>\r\n";
+			send(client._fd, msg.c_str(), msg.size(), 0);
+			return;
+		}
+		client._username = cmd.params[0];
+		client._realname = cmd.params[3];
+		client._hasUser = true;
+		std::cout << "[USER] set to username \"" << client._username << "\" and realname \"" << client._realname
+				  << "\" for fd " << client._fd << std::endl;
+		tryRegister(client);
 		return;
 	}
-	/*if (cmd.name == "JOIN" || cmd.name == "PART" || cmd.name == "PRIVMSG" 
+	if (cmd.name == "JOIN" || cmd.name == "PART" || cmd.name == "PRIVMSG" 
 		|| cmd.name == "NOTICE" || cmd.name == "QUIT")
 	{
-		handleCoreCommands();
+		//handleCoreCommands();
 		return;
 	}
 	if (cmd.name == "KICK" || cmd.name == "INVITE"
 		|| cmd.name == "TOPIC" || cmd.name == "MODE")
 	{
-		handleOperatorCommands();
+		//handleOperatorCommands();
 		return;
-	}*/
-	std::string msg = "ERROR: Unknown command\n";
+	}
+	if (cmd.name == "PING")
+	{
+		if (cmd.params.empty())
+		{
+			std::string msg = "ERROR: PING needs a parameter\r\n";
+			send(client._fd, msg.c_str(), msg.size(), 0);
+			return;
+		}
+
+		// vastaa PINGIIN lähettämällä PONGilla sama takaisin
+		std::string reply = "PONG " + cmd.params[0] + "\r\n";
+		send(client._fd, reply.c_str(), reply.size(), 0);
+
+		std::cout << "[PING] from fd " << client._fd
+				<< " -> reply \"" << reply << "\"\n";
+		return;
+	}
+
+	std::string msg = "ERROR : Unknown command\r\n";
 	send(client._fd, msg.c_str(), msg.size(), 0);
 }
