@@ -1,19 +1,24 @@
 #pragma once
 
+#include "Server.hpp"
+#include "Client.hpp"
+#include "Parser.hpp"
 #include <iostream>
-#include <sstream> // istringstream
-#include <sys/types.h>  // socket
+#include <sstream>
 #include <sys/socket.h> // send
 
-class Server;
-class Client;
-
-struct	Command
+class CommandHandler
 {
-	std::string	name;
-	std::vector<std::string>	params; // parametrit
+	private:
+		Server&	_server;
+		Client&	_client;
+
+		void handlePass(const Command &cmd);
+		void handleNick(const Command &cmd);
+		void handleUser(const Command &cmd);
+		void handlePing(const Command &cmd);
+		void tryRegister();
+	public:
+		CommandHandler(Server &server, Client &client);
+		void handleCommand(const Command &cmd);
 };
-
-Command	parseCommand(const std::string &line);
-
-void	processLine(Server &server, Client &client, const std::string &line);

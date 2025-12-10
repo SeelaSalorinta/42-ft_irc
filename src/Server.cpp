@@ -1,5 +1,6 @@
 #include "Server.hpp"
 #include "Parser.hpp"
+#include "CommandHandler.hpp"
 
 #include <iostream>
 #include <cstring>
@@ -180,7 +181,10 @@ void Server::handleClient(std::size_t index)
 
 		if (line.empty())
 			continue;
-		processLine(*this, *client, line);
+
+		Command cmd = parseCommand(line);
+		CommandHandler handler(*this, *client);
+		handler.handleCommand(cmd); 
 	}
 
 	//IN COMMENTS FOR NOW
