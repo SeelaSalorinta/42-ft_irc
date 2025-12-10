@@ -1,4 +1,5 @@
 #include "CommandHandler.hpp"
+#include "Replies.hpp"
 
 CommandHandler::CommandHandler(Server &server, Client &client)
 	: _server(server), _client(client) {}
@@ -12,8 +13,7 @@ void CommandHandler::handleCommand(const Command &cmd)
 		return handlePass(cmd);
 	if (!_client._hasPass)
 	{
-		std::string msg = "ERROR :You must send PASS before other commands\r\n";
-		send(_client._fd, msg.c_str(), msg.size(), 0);
+		sendReply(_client, "ERROR", "You must send PASS before other commands");
 		return;
 	}
 
@@ -25,28 +25,24 @@ void CommandHandler::handleCommand(const Command &cmd)
 		return handlePing(cmd);
 
 	// fallback for unknown commands
-	std::string msg = "ERROR :Unknown command\r\n";
-	send(_client._fd, msg.c_str(), msg.size(), 0);
+	sendReply(_client, "ERROR", "Unknown command");
 }
 
 void CommandHandler::handlePass(const Command &cmd)
 {
 	if (cmd.params.size() != 1)
 	{
-		std::string msg = "ERROR :PASS command takes exactly one parameter\r\n";
-		send(_client._fd, msg.c_str(), msg.size(), 0);
+		sendERR_NEEDMOREPARAMS(_client, "PASS");
 		return;
 	}
 	if (_client._isRegistered || _client._hasNick || _client._hasUser)
 	{
-		std::string msg = "ERROR :You may not reregister\r\n";
-		send(_client._fd, msg.c_str(), msg.size(), 0);
+		sendERR_ALREADYREGISTERED(_client);
 		return;
 	}
 	if (cmd.params[0] != _server.getPassword())
 	{
-		std::string msg = "ERROR :Password incorrect\r\n";
-		send(_client._fd, msg.c_str(), msg.size(), 0);
+		sendERR_PASSWDMISMATCH(_client);
 		return;
 	}
 	_client._hasPass = true;
@@ -58,8 +54,7 @@ void CommandHandler::handleNick(const Command &cmd)
 {
 	if (cmd.params.size() != 1)
 	{
-		std::string msg = "ERROR :NICK command takes exactly one parameter\r\n";
-		send(_client._fd, msg.c_str(), msg.size(), 0);
+		sendERR_NEEDMOREPARAMS(_client, "NICK");
 		return;
 	}
 	_client._nickname = cmd.params[0];
@@ -72,8 +67,7 @@ void CommandHandler::handleUser(const Command &cmd)
 {
 	if (cmd.params.size() != 4 || cmd.params[1] != "0" || cmd.params[2] != "*")
 	{
-		std::string msg = "ERROR :Usage: USER <username> 0 * :<realname>\r\n";
-		send(_client._fd, msg.c_str(), msg.size(), 0);
+		sendERR_NEEDMOREPARAMS(_client, "USER");
 		return;
 	}
 	_client._username = cmd.params[0];
@@ -89,8 +83,7 @@ void CommandHandler::handlePing(const Command &cmd)
 {
 	if (cmd.params.empty())
 	{
-		std::string msg = "ERROR :PING requires a parameter\r\n";
-		send(_client._fd, msg.c_str(), msg.size(), 0);
+		sendERR_NEEDMOREPARAMS(_client, "PING");
 		return;
 	}
 	std::string reply = "PONG " + cmd.params[0] + "\r\n";
@@ -106,8 +99,6 @@ void CommandHandler::tryRegister()
 		return;
 
 	_client._isRegistered = true;
-
-	std::string msg = ":ft_irc 001 " + _client._nickname + " :Welcome to ft_irc\r\n";
-	send(_client._fd, msg.c_str(), msg.size(), 0);
+	sendRPL_WELCOME(_client);
 	std::cout << "[REGISTER] fd " << _client._fd << " registered as " << _client._nickname << "\n";
 }
