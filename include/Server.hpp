@@ -5,6 +5,7 @@
 #include <poll.h>
 #include <map>
 #include "Client.hpp"
+#include "Channel.hpp"
 
 class Server
 {
@@ -27,6 +28,7 @@ class Server
 
 		static bool setNonBlocking(int fd);
 
+		std::map<std::string, Channel*> _channels;
 		std::map<int, Client*> _clients; //servers clientS
 
 		public:
@@ -34,5 +36,7 @@ class Server
 			~Server();
 
 			void start();
-			const std::string &getPassword() const;
+			const std::string&	getPassword() const;
+			Channel*	getOrCreateChannel(const std::string &name);
+			Channel*	getChannel(const std::string &name);
 };

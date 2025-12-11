@@ -208,3 +208,17 @@ void Server::dropClient(int fd, const char *reason)
 		}
 	}
 }
+
+Channel*	Server::getOrCreateChannel(const std::string &name)
+{
+	if (_channels.count(name) == 0)
+		_channels[name] = new Channel(name);
+	return _channels[name];
+}
+
+Channel*	Server::getChannel(const std::string &name)
+{
+	if (_channels.count(name) == 0)
+		return NULL;
+	return _channels[name];
+}

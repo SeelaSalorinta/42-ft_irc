@@ -6,8 +6,8 @@
 
 struct Command
 {
-	std::string name;
-	std::vector<std::string> params;
+	std::string					name;
+	std::vector<std::string>	params;
 };
 
 Command parseCommand(const std::string& line);

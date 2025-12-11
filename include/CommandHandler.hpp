@@ -13,11 +13,12 @@ class CommandHandler
 		Server&	_server;
 		Client&	_client;
 
-		void handlePass(const Command &cmd);
-		void handleNick(const Command &cmd);
-		void handleUser(const Command &cmd);
-		void handlePing(const Command &cmd);
-		void tryRegister();
+		void	handlePass(const Command &cmd);
+		void	handleNick(const Command &cmd);
+		void	handleUser(const Command &cmd);
+		void	handleJoin(const Command &cmd);
+		void	handlePing(const Command &cmd);
+		void	tryRegister();
 	public:
 		CommandHandler(Server &server, Client &client);
 		void handleCommand(const Command &cmd);

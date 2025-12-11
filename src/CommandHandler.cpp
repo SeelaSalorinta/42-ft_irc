@@ -4,7 +4,7 @@
 CommandHandler::CommandHandler(Server &server, Client &client)
 	: _server(server), _client(client) {}
 
-void CommandHandler::handleCommand(const Command &cmd)
+void	CommandHandler::handleCommand(const Command &cmd)
 {
 	if (cmd.name == "CAP")
 		return;
@@ -21,6 +21,8 @@ void CommandHandler::handleCommand(const Command &cmd)
 		return handleNick(cmd);
 	if (cmd.name == "USER")
 		return handleUser(cmd);
+	if (cmd.name == "JOIN")
+		return handleJoin(cmd);
 	if (cmd.name == "PING")
 		return handlePing(cmd);
 
@@ -28,7 +30,7 @@ void CommandHandler::handleCommand(const Command &cmd)
 	sendReply(_client, "ERROR", "Unknown command");
 }
 
-void CommandHandler::handlePass(const Command &cmd)
+void	CommandHandler::handlePass(const Command &cmd)
 {
 	if (cmd.params.size() != 1)
 	{
@@ -50,7 +52,7 @@ void CommandHandler::handlePass(const Command &cmd)
 	tryRegister();
 }
 
-void CommandHandler::handleNick(const Command &cmd)
+void	CommandHandler::handleNick(const Command &cmd)
 {
 	if (cmd.params.size() != 1)
 	{
@@ -63,13 +65,15 @@ void CommandHandler::handleNick(const Command &cmd)
 	tryRegister();
 }
 
-void CommandHandler::handleUser(const Command &cmd)
+void	CommandHandler::handleUser(const Command &cmd)
 {
-	if (cmd.params.size() != 4 || cmd.params[1] != "0" || cmd.params[2] != "*")
+	if (cmd.params.size() != 4)
 	{
 		sendERR_NEEDMOREPARAMS(_client, "USER");
 		return;
 	}
+	if (cmd.params[1] != "0" || cmd.params[2] != "*")
+		return;
 	_client._username = cmd.params[0];
 	_client._realname = cmd.params[3];
 	_client._hasUser = true;
@@ -79,7 +83,21 @@ void CommandHandler::handleUser(const Command &cmd)
 	tryRegister();
 }
 
-void CommandHandler::handlePing(const Command &cmd)
+void	CommandHandler::handleJoin(const Command &cmd)
+{
+	if (cmd.params.empty())
+	{
+		sendERR_NEEDMOREPARAMS(_client, "JOIN");
+		return;
+	}
+	Channel	*channel = _server.getOrCreateChannel(cmd.params[0]);
+	channel->addClient(&_client);
+	std::string joinMsg = ":" + _client._nickname + " JOIN " + cmd.params[0]+ "\r\n";
+	channel->broadcast(joinMsg);
+	std::cout << "[JOIN] " << _client._nickname << " joined " << cmd.params[0] << "\n";
+}
+
+void	CommandHandler::handlePing(const Command &cmd)
 {
 	if (cmd.params.empty())
 	{
@@ -91,7 +109,7 @@ void CommandHandler::handlePing(const Command &cmd)
 	std::cout << "[PING] from fd " << _client._fd << " -> reply \"" << reply << "\"\n";
 }
 
-void CommandHandler::tryRegister()
+void	CommandHandler::tryRegister()
 {
 	if (_client._isRegistered)
 		return;

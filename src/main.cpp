@@ -3,12 +3,12 @@
 
 #include "Server.hpp"
 
-static void usage(const char *prog)
+static void	usage(const char *prog)
 {
 	std::cerr << "Usage: " << prog << " <port> <password>" << std::endl;
 }
 
-int main(int argc, char **argv)
+int	main(int argc, char **argv)
 {
 	if (argc != 3)
 	{
