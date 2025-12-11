@@ -2,8 +2,12 @@
 
 #include <string>
 
+class Channel;
+
 class Client
 {
+	private:
+		std::vector<Channel*> _joinedChannels;
 	public:
 		int	_fd; // socket file descriptor
 		std::string	_recvBuffer; // unfinished incoming data
@@ -18,5 +22,10 @@ class Client
 		bool	_hasUser;
 		bool	_isRegistered;
 
+
 		Client(int fd);
+
+		const std::vector<Channel*>&	getJoinedChannels() const;
+		void	joinChannel(Channel* channel);
+		void	leaveChannel(Channel* channel);
 };

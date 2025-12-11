@@ -1,11 +1,12 @@
 #pragma once
 
-#include "Server.hpp"
-#include "Client.hpp"
-#include "Parser.hpp"
 #include <iostream>
 #include <sstream>
 #include <sys/socket.h> // send
+
+class Server;
+class Client;
+struct Command;
 
 class CommandHandler
 {
@@ -13,11 +14,13 @@ class CommandHandler
 		Server&	_server;
 		Client&	_client;
 
-		void	handlePass(const Command &cmd);
-		void	handleNick(const Command &cmd);
-		void	handleUser(const Command &cmd);
-		void	handleJoin(const Command &cmd);
-		void	handlePing(const Command &cmd);
+		void	handlePASS(const Command &cmd);
+		void	handleNICK(const Command &cmd);
+		void	handleUSER(const Command &cmd);
+		void	handleJOIN(const Command &cmd);
+		void	handlePING(const Command &cmd);
+		void	handleQUIT(const Command &cmd);
+		void	handlePART(const Command &cmd);
 		void	tryRegister();
 	public:
 		CommandHandler(Server &server, Client &client);

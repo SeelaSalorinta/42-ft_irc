@@ -1,6 +1,8 @@
 #include "Server.hpp"
 #include "Parser.hpp"
 #include "CommandHandler.hpp"
+#include "Client.hpp"
+#include "Channel.hpp"
 
 #include <iostream>
 #include <cstring>
@@ -182,6 +184,7 @@ void Server::handleClient(std::size_t index)
 		if (line.empty())
 			continue;
 
+		std::cout << "REcieved line " << line << std::endl;
 		Command cmd = parseCommand(line);
 		CommandHandler handler(*this, *client);
 		handler.handleCommand(cmd); 
@@ -195,7 +198,7 @@ void Server::handleClient(std::size_t index)
 	}*/
 }
 
-void Server::dropClient(int fd, const char *reason)
+void	Server::dropClient(int fd, const char *reason)
 {
 	std::cout << "Closing fd=" << fd << " (" << reason << ")" << std::endl;
 	close(fd);
@@ -206,6 +209,22 @@ void Server::dropClient(int fd, const char *reason)
 			_pollFds.erase(it);
 			break;
 		}
+	}
+	// poista client channeleilta
+	std::map<int, Client*>::iterator it = _clients.find(fd);
+	if (it != _clients.end())
+	{
+		Client* client = it->second;
+
+		const std::vector<Channel*>& chans = client->getJoinedChannels();
+		for (std::size_t i = 0; i < chans.size(); ++i)
+		{
+			chans[i]->removeClient(client);
+			client->leaveChannel(chans[i]);
+		}
+
+		delete client;
+		_clients.erase(it);
 	}
 }
 

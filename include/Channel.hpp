@@ -1,10 +1,11 @@
 #pragma once 
 
-#include "Client.hpp"
 #include <string>
 #include <vector>
 #include <sys/socket.h> // send
 #include <algorithm>
+
+class Client;
 
 class Channel
 {

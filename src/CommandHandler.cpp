@@ -1,5 +1,9 @@
 #include "CommandHandler.hpp"
+#include "Server.hpp"
+#include "Client.hpp"
+#include "Parser.hpp"
 #include "Replies.hpp"
+#include "Channel.hpp"
 
 CommandHandler::CommandHandler(Server &server, Client &client)
 	: _server(server), _client(client) {}
@@ -10,7 +14,7 @@ void	CommandHandler::handleCommand(const Command &cmd)
 		return;
 
 	if (cmd.name == "PASS")
-		return handlePass(cmd);
+		return handlePASS(cmd);
 	if (!_client._hasPass)
 	{
 		sendReply(_client, "ERROR", "You must send PASS before other commands");
@@ -18,19 +22,60 @@ void	CommandHandler::handleCommand(const Command &cmd)
 	}
 
 	if (cmd.name == "NICK")
-		return handleNick(cmd);
+		return handleNICK(cmd);
 	if (cmd.name == "USER")
-		return handleUser(cmd);
+		return handleUSER(cmd);
 	if (cmd.name == "JOIN")
-		return handleJoin(cmd);
+		return handleJOIN(cmd);
+	if (cmd.name == "PART")
+		return handlePART(cmd);
 	if (cmd.name == "PING")
-		return handlePing(cmd);
+		return handlePING(cmd);
+	//if (cmd.name == "QUIT")
+	//	return handleQUIT(cmd);
 
 	// fallback for unknown commands
 	sendReply(_client, "ERROR", "Unknown command");
 }
 
-void	CommandHandler::handlePass(const Command &cmd)
+/*void	CommandHandler::handleQUIT(const Command &cmd)
+{
+	if (!cmd.params.empty())
+	{
+		sendERR_(_client, "QUIT");
+		return;
+	}
+}*/
+
+void	CommandHandler::handlePART(const Command &cmd)
+{
+	if (cmd.params.size() != 1)
+	{
+		sendERR_NEEDMOREPARAMS(_client, "PART");
+		return;
+	}
+	std::string channelName = cmd.params[0];
+	if (channelName.empty() || channelName[0] != '#')
+	{
+		sendERR_NOSUCHCHANNEL(_client, channelName);
+		return;
+	}
+
+	Channel* channel = _server.getChannel(channelName);
+	if (!channel)
+	{
+		sendERR_NOSUCHCHANNEL(_client, cmd.params[0]);
+		return;
+	}
+	//poista client kyseiseltä kanavalta
+	_client.leaveChannel(channel);
+	std::string partMsg = ":" + _client._nickname + " PART " + cmd.params[0]+ "\r\n";
+	channel->broadcast(partMsg);
+	std::cout << "[PART] " << _client._nickname << " part " << cmd.params[0] << "\n";
+
+}
+
+void	CommandHandler::handlePASS(const Command &cmd)
 {
 	if (cmd.params.size() != 1)
 	{
@@ -52,7 +97,7 @@ void	CommandHandler::handlePass(const Command &cmd)
 	tryRegister();
 }
 
-void	CommandHandler::handleNick(const Command &cmd)
+void	CommandHandler::handleNICK(const Command &cmd)
 {
 	if (cmd.params.size() != 1)
 	{
@@ -65,7 +110,7 @@ void	CommandHandler::handleNick(const Command &cmd)
 	tryRegister();
 }
 
-void	CommandHandler::handleUser(const Command &cmd)
+void	CommandHandler::handleUSER(const Command &cmd)
 {
 	if (cmd.params.size() != 4)
 	{
@@ -83,7 +128,7 @@ void	CommandHandler::handleUser(const Command &cmd)
 	tryRegister();
 }
 
-void	CommandHandler::handleJoin(const Command &cmd)
+void	CommandHandler::handleJOIN(const Command &cmd)
 {
 	if (cmd.params.empty())
 	{
@@ -92,12 +137,13 @@ void	CommandHandler::handleJoin(const Command &cmd)
 	}
 	Channel	*channel = _server.getOrCreateChannel(cmd.params[0]);
 	channel->addClient(&_client);
+	_client.joinChannel(channel);
 	std::string joinMsg = ":" + _client._nickname + " JOIN " + cmd.params[0]+ "\r\n";
 	channel->broadcast(joinMsg);
 	std::cout << "[JOIN] " << _client._nickname << " joined " << cmd.params[0] << "\n";
 }
 
-void	CommandHandler::handlePing(const Command &cmd)
+void	CommandHandler::handlePING(const Command &cmd)
 {
 	if (cmd.params.empty())
 	{

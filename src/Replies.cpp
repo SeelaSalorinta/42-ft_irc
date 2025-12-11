@@ -1,4 +1,5 @@
 #include "Replies.hpp"
+#include "Client.hpp"
 
 static const std::string SERVERNAME = "ft_irc";
 
@@ -16,6 +17,16 @@ void	sendRPL_WELCOME(Client &client)
 void	sendERR_ALREADYREGISTERED(Client &client)
 {
 	sendReply(client, "462", "You may not reregister");
+}
+
+void	sendERR_NOSUCHCHANNEL(Client &client, const std::string &command)
+{
+	sendReply(client, "403", command + " :No such channel");
+}
+
+void	sendERR_CLIENTNOTINCHANNEL(Client &client, const std::string &command)
+{
+	sendReply(client, "442", command + " :Client is not part of channel");
 }
 
 void	sendERR_NEEDMOREPARAMS(Client &client, const std::string &command)
