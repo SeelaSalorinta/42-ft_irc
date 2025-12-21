@@ -31,6 +31,8 @@ void	CommandHandler::handleCommand(const Command &cmd)
 		return handlePART(cmd);
 	if (cmd.name == "PING")
 		return handlePING(cmd);
+	if (cmd.name == "PRIVMSG")
+		return handlePRIVMSG(cmd);
 	//if (cmd.name == "QUIT")
 	//	return handleQUIT(cmd);
 
@@ -46,6 +48,35 @@ void	CommandHandler::handleCommand(const Command &cmd)
 		return;
 	}
 }*/
+
+std::string makePrefix(const Client& c)
+{
+	return ":" + c._nickname + "!" + c._username + "@localhost ";
+}
+
+
+void	CommandHandler::handlePRIVMSG(const Command &cmd)
+{
+	if (cmd.params.size() < 2)
+	{
+		sendERR_NEEDMOREPARAMS(_client, "PRIVMSG");
+		return;
+	}
+	const std::string& target = cmd.params[0];
+	const std::string& message = cmd.params[1];
+
+	if (target[0] == '#')
+	{
+		Channel* channel = _server.getChannel(target);
+		if (!channel)
+			return sendERR_NOSUCHCHANNEL(_client, target);
+		if (!channel->hasClient(&_client))
+			return sendERR_CLIENTNOTINCHANNEL(_client, target);
+		std::string msg = makePrefix(_client) + "PRIVMSG " + target + " :" + message + "\r\n";
+		channel->broadcastExcept(msg, &_client);
+	}
+
+}
 
 void	CommandHandler::handlePART(const Command &cmd)
 {
@@ -64,14 +95,16 @@ void	CommandHandler::handlePART(const Command &cmd)
 	Channel* channel = _server.getChannel(channelName);
 	if (!channel)
 	{
-		sendERR_NOSUCHCHANNEL(_client, cmd.params[0]);
+		sendERR_NOSUCHCHANNEL(_client, channelName);
 		return;
 	}
-	//poista client kyseiseltä kanavalta
+	if (!channel->hasClient(&_client))
+		sendERR_CLIENTNOTINCHANNEL(_client, channelName);
+	std::string msg = makePrefix(_client) + "PART " + channelName + "\r\n";
+	channel->broadcast(msg);
+	std::cout << "[PART] " << _client._nickname << " part " << channelName << "\n";
+		//poista client kyseiseltä kanavalta
 	_client.leaveChannel(channel);
-	std::string partMsg = ":" + _client._nickname + " PART " + cmd.params[0]+ "\r\n";
-	channel->broadcast(partMsg);
-	std::cout << "[PART] " << _client._nickname << " part " << cmd.params[0] << "\n";
 
 }
 
@@ -135,12 +168,13 @@ void	CommandHandler::handleJOIN(const Command &cmd)
 		sendERR_NEEDMOREPARAMS(_client, "JOIN");
 		return;
 	}
-	Channel	*channel = _server.getOrCreateChannel(cmd.params[0]);
+	std::string channelName = cmd.params[0];
+	Channel	*channel = _server.getOrCreateChannel(channelName);
 	channel->addClient(&_client);
 	_client.joinChannel(channel);
-	std::string joinMsg = ":" + _client._nickname + " JOIN " + cmd.params[0]+ "\r\n";
-	channel->broadcast(joinMsg);
-	std::cout << "[JOIN] " << _client._nickname << " joined " << cmd.params[0] << "\n";
+	std::string msg = makePrefix(_client) + "JOIN " + channelName + "\r\n";
+	channel->broadcast(msg);	
+	std::cout << "[JOIN] " << _client._nickname << " joined " << channelName << "\n";
 }
 
 void	CommandHandler::handlePING(const Command &cmd)

@@ -22,4 +22,8 @@ class Channel
 		void	removeClient(Client* client);
 
 		void	broadcast(const std::string &message);
+		void	broadcastExcept(const std::string &message, Client* except);
+
+		bool	hasClient(Client* client);
+
 };

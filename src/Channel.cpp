@@ -29,3 +29,18 @@ void	Channel::broadcast(const std::string &message)
 	for (std::vector<Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it)
 		send((*it)->_fd, message.c_str(), message.size(), 0);
 }
+
+void	Channel::broadcastExcept(const std::string &message, Client* except)
+{
+	for (std::vector<Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it)
+	{
+		if (*it == except)
+			continue;
+		send((*it)->_fd, message.c_str(), message.size(), 0);
+	}
+}
+
+bool	Channel::hasClient(Client* client)
+{
+	return (std::find(_clients.begin(), _clients.end(), client) != _clients.end());
+}

@@ -21,6 +21,7 @@ class CommandHandler
 		void	handlePING(const Command &cmd);
 		void	handleQUIT(const Command &cmd);
 		void	handlePART(const Command &cmd);
+		void	handlePRIVMSG(const Command &cmd);
 		void	tryRegister();
 	public:
 		CommandHandler(Server &server, Client &client);
