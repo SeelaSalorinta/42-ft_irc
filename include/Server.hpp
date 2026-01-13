@@ -40,4 +40,6 @@ class Server
 			const std::string&	getPassword() const;
 			Channel*	getOrCreateChannel(const std::string &name);
 			Channel*	getChannel(const std::string &name);
+			Client* getClientByNick(const std::string& nick);
+
 };

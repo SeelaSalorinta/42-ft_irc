@@ -218,14 +218,19 @@ void	Server::dropClient(int fd, const char *reason)
 
 		const std::vector<Channel*>& chans = client->getJoinedChannels();
 		for (std::size_t i = 0; i < chans.size(); ++i)
-		{
-			chans[i]->removeClient(client);
 			client->leaveChannel(chans[i]);
-		}
 
 		delete client;
 		_clients.erase(it);
 	}
+}
+
+Client* Server::getClientByNick(const std::string& nick)
+{
+	for (std::map<int, Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it)
+		if (it->second && it->second->_nickname == nick)
+			return it->second;
+	return NULL;
 }
 
 Channel*	Server::getOrCreateChannel(const std::string &name)
