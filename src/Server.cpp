@@ -246,3 +246,8 @@ Channel*	Server::getChannel(const std::string &name)
 		return NULL;
 	return _channels[name];
 }
+
+void Server::disconnectClient(int fd, const std::string& reason)
+{
+	dropClient(fd, reason.c_str());
+}

@@ -39,23 +39,35 @@ void	CommandHandler::handleCommand(const Command &cmd)
 	if (cmd.name == "MODE")
 		return handleMODE(cmd);
 	
-	//if (cmd.name == "QUIT")
-	//	return handleQUIT(cmd);
+	if (cmd.name == "QUIT")
+		return handleQUIT(cmd);
 
 	// fallback for unknown commands
 	sendReply(_client, "ERROR", "Unknown command");
 }
 
-/*void	CommandHandler::handleQUIT(const Command &cmd)
+void CommandHandler::handleQUIT(const Command& cmd)
 {
+	std::string reason = "Client Quit";
 	if (!cmd.params.empty())
-	{
-		sendERR_(_client, "QUIT");
-		return;
-	}
-}*/
+		reason = cmd.params[0];
 
-std::string makePrefix(const Client& c)
+	std::vector<Channel*> chans = _client.getJoinedChannels();
+	std::string msg = makePrefix(_client) + "QUIT :" + reason + "\r\n";
+
+	for (std::size_t i = 0; i < chans.size(); ++i)
+	{
+		Channel* ch = chans[i];
+		if (ch && ch->hasClient(&_client))
+			ch->broadcastExcept(msg, &_client);
+		_client.leaveChannel(ch);
+	}
+
+	_server.disconnectClient(_client._fd, reason);
+}
+
+
+std::string	makePrefix(const Client& c)
 {
 	return ":" + c._nickname + "!" + c._username + "@localhost ";
 }

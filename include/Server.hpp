@@ -32,14 +32,15 @@ class Server
 		std::map<std::string, Channel*> _channels;
 		std::map<int, Client*> _clients; //servers clientS
 
-		public:
-			explicit Server(int port, const std::string &password);
-			~Server();
+	public:
+		explicit Server(int port, const std::string &password);
+		~Server();
 
-			void start();
-			const std::string&	getPassword() const;
-			Channel*	getOrCreateChannel(const std::string &name);
-			Channel*	getChannel(const std::string &name);
-			Client* getClientByNick(const std::string& nick);
+		void start();
+		const std::string&	getPassword() const;
+		Channel* getOrCreateChannel(const std::string &name);
+		Channel* getChannel(const std::string &name);
+		Client*	getClientByNick(const std::string& nick);
+		void disconnectClient(int fd, const std::string& reason);
 
 };
