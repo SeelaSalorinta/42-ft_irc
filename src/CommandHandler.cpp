@@ -412,7 +412,7 @@ void	CommandHandler::handleJOIN(const Command &cmd)
 
 	channel->addClient(&_client);
 	_client.joinChannel(channel);
-	if (channel->inviteOnly() && channel->isInvited(_client._nickname))
+	if (channel->inviteOnly())
 		channel->consumeInvite(_client._nickname);	
 	if (firstJoiner) //first joiner gets operaator rights?
 		channel->addOperator(&_client);
