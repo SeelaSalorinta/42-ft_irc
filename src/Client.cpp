@@ -1,8 +1,8 @@
 #include "Client.hpp"
 #include "Channel.hpp"
 
-Client::Client(int fd)
-: _fd(fd), _hasPass(false), _hasNick(false), _hasUser(false), _isRegistered(false)
+Client::Client(int fd, Server* server)
+: _fd(fd), _server(server), _hasPass(false), _hasNick(false), _hasUser(false), _isRegistered(false)
 {}
 
 const std::vector<Channel*>&	Client::getJoinedChannels() const

@@ -25,6 +25,7 @@ class Server
 		void eventLoop();
 		void acceptNewClients();
 		void handleClient(std::size_t index);
+		void handleWritable(std::size_t index);
 		void dropClient(int fd, const char *reason);
 
 		static bool setNonBlocking(int fd);
@@ -41,6 +42,7 @@ class Server
 		Channel* getOrCreateChannel(const std::string &name);
 		Channel* getChannel(const std::string &name);
 		Client*	getClientByNick(const std::string& nick);
+		void	queueMessage(Client* client, const std::string& data);
 		void disconnectClient(int fd, const std::string& reason);
 
 };

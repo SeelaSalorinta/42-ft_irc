@@ -5,6 +5,9 @@
 #include "Replies.hpp"
 #include "Channel.hpp"
 
+// Forward declaration for helper used across handlers
+static std::string	makePrefix(const Client& c);
+
 CommandHandler::CommandHandler(Server &server, Client &client)
 	: _server(server), _client(client) {}
 
@@ -20,27 +23,39 @@ void	CommandHandler::handleCommand(const Command &cmd)
 		sendReply(_client, "ERROR", "You must send PASS before other commands");
 		return;
 	}
+	if (!_client._isRegistered
+		&& cmd.name != "NICK"
+		&& cmd.name != "USER"
+		&& cmd.name != "QUIT"
+		&& cmd.name != "PING")
+	{
+		// ERR_NOTREGISTERED
+		sendReply(_client, "451", "You have not registered");
+		return;
+	}
 
 	//THINK BETTER WAY TO HANDLE
-	if (cmd.name == "NICK")
-		return handleNICK(cmd);
-	if (cmd.name == "USER")
-		return handleUSER(cmd);
-	if (cmd.name == "JOIN")
-		return handleJOIN(cmd);
-	if (cmd.name == "PART")
-		return handlePART(cmd);
-	if (cmd.name == "PING")
-		return handlePING(cmd);
-	if (cmd.name == "PRIVMSG")
-		return handlePRIVMSG(cmd);
-	if (cmd.name == "NOTICE")
-		return handleNOTICE(cmd);
-	if (cmd.name == "MODE")
-		return handleMODE(cmd);
-	
-	if (cmd.name == "QUIT")
-		return handleQUIT(cmd);
+	struct Entry { const char* name; void (CommandHandler::*fn)(const Command&); };
+	static const Entry table[] = {
+		{"NICK", &CommandHandler::handleNICK},
+		{"USER", &CommandHandler::handleUSER},
+		{"JOIN", &CommandHandler::handleJOIN},
+		{"PART", &CommandHandler::handlePART},
+		{"PING", &CommandHandler::handlePING},
+		{"INVITE", &CommandHandler::handleINVITE},
+		{"KICK", &CommandHandler::handleKICK},
+		{"TOPIC", &CommandHandler::handleTOPIC},
+		{"PRIVMSG", &CommandHandler::handlePRIVMSG},
+		{"NOTICE", &CommandHandler::handleNOTICE},
+		{"MODE", &CommandHandler::handleMODE},
+		{"QUIT", &CommandHandler::handleQUIT},
+	};
+
+	for (std::size_t i = 0; i < sizeof(table) / sizeof(table[0]); ++i)
+	{
+		if (cmd.name == table[i].name)
+			return (this->*(table[i].fn))(cmd);
+	}
 
 	// fallback for unknown commands
 	sendReply(_client, "ERROR", "Unknown command");
@@ -266,7 +281,7 @@ void CommandHandler::handleNOTICE(const Command& cmd)
 	if (!dest) return;
 
 	std::string msg = makePrefix(_client) + "NOTICE " + target + " :" + message + "\r\n";
-	send(dest->_fd, msg.c_str(), msg.size(), 0);
+	_server.queueMessage(dest, msg);
 }
 
 void CommandHandler::handlePRIVMSG(const Command &cmd)
@@ -300,7 +315,7 @@ void CommandHandler::handlePRIVMSG(const Command &cmd)
 		return sendERR_NOSUCHNICK(_client, target);
 
 	std::string msg = makePrefix(_client) + "PRIVMSG " + target + " :" + message + "\r\n";
-	send(dest->_fd, msg.c_str(), msg.size(), 0);
+	_server.queueMessage(dest, msg);
 }
 
 
@@ -363,7 +378,12 @@ void	CommandHandler::handleNICK(const Command &cmd)
 		sendERR_NEEDMOREPARAMS(_client, "NICK");
 		return;
 	}
-	_client._nickname = cmd.params[0];
+	const std::string& newNick = cmd.params[0];
+	Client* existing = _server.getClientByNick(newNick);
+	if (existing && existing != &_client)
+		return sendReply(_client, "433", newNick + " :Nickname is already in use");
+
+	_client._nickname = newNick;
 	_client._hasNick = true;
 	std::cout << "[NICK] set to \"" << _client._nickname << "\" for fd " << _client._fd << std::endl;
 	tryRegister();
@@ -421,6 +441,93 @@ void	CommandHandler::handleJOIN(const Command &cmd)
 	std::cout << "[JOIN] " << _client._nickname << " joined " << channelName << "\n";
 }
 
+void CommandHandler::handleTOPIC(const Command& cmd)
+{
+	if (cmd.params.empty())
+		return sendERR_NEEDMOREPARAMS(_client, "TOPIC");
+
+	const std::string& channelName = cmd.params[0];
+	Channel* channel = _server.getChannel(channelName);
+	if (!channel)
+		return sendERR_NOSUCHCHANNEL(_client, channelName);
+	if (!channel->hasClient(&_client))
+		return sendERR_CLIENTNOTINCHANNEL(_client, channelName);
+
+	// View topic
+	if (cmd.params.size() == 1)
+	{
+		if (channel->getTopic().empty())
+			return sendReply(_client, "331", channelName + " :No topic is set"); // RPL_NOTOPIC
+		return sendReply(_client, "332", channelName + " :" + channel->getTopic()); // RPL_TOPIC
+	}
+
+	// Change topic requires operator if +t
+	if (channel->topicOpOnly() && !channel->isOperator(&_client))
+		return sendERR_CHANOPRIVSNEEDED(_client, channelName);
+
+	const std::string& topic = cmd.params[1];
+	channel->setTopic(topic);
+
+	std::string msg = makePrefix(_client) + "TOPIC " + channelName + " :" + topic + "\r\n";
+	channel->broadcast(msg);
+}
+
+void CommandHandler::handleINVITE(const Command& cmd)
+{
+	if (cmd.params.size() < 2)
+		return sendERR_NEEDMOREPARAMS(_client, "INVITE");
+
+	const std::string& nick = cmd.params[0];
+	const std::string& channelName = cmd.params[1];
+
+	Channel* channel = _server.getChannel(channelName);
+	if (!channel)
+		return sendERR_NOSUCHCHANNEL(_client, channelName);
+	if (!channel->hasClient(&_client))
+		return sendERR_CLIENTNOTINCHANNEL(_client, channelName);
+	if (!channel->isOperator(&_client))
+		return sendERR_CHANOPRIVSNEEDED(_client, channelName);
+
+	Client* target = _server.getClientByNick(nick);
+	if (!target)
+		return sendERR_NOSUCHNICK(_client, nick);
+	if (channel->hasClient(target))
+		return sendReply(_client, "443", nick + " " + channelName + " :is already on channel"); // ERR_USERONCHANNEL
+
+	channel->inviteNick(nick);
+	std::string inviteMsg = makePrefix(_client) + "INVITE " + nick + " " + channelName + "\r\n";
+	_server.queueMessage(target, inviteMsg);
+	sendReply(_client, "341", nick + " " + channelName); // RPL_INVITING
+}
+
+void CommandHandler::handleKICK(const Command& cmd)
+{
+	if (cmd.params.size() < 2)
+		return sendERR_NEEDMOREPARAMS(_client, "KICK");
+
+	const std::string& channelName = cmd.params[0];
+	const std::string& nick = cmd.params[1];
+	const std::string reason = (cmd.params.size() >= 3) ? cmd.params[2] : "Kicked";
+
+	Channel* channel = _server.getChannel(channelName);
+	if (!channel)
+		return sendERR_NOSUCHCHANNEL(_client, channelName);
+	if (!channel->hasClient(&_client))
+		return sendERR_CLIENTNOTINCHANNEL(_client, channelName);
+	if (!channel->isOperator(&_client))
+		return sendERR_CHANOPRIVSNEEDED(_client, channelName);
+
+	Client* target = _server.getClientByNick(nick);
+	if (!target)
+		return sendERR_NOSUCHNICK(_client, nick);
+	if (!channel->hasClient(target))
+		return sendERR_USERNOTINCHANNEL(_client, nick, channelName);
+
+	std::string msg = makePrefix(_client) + "KICK " + channelName + " " + nick + " :" + reason + "\r\n";
+	channel->broadcast(msg);
+	target->leaveChannel(channel);
+}
+
 void	CommandHandler::handlePING(const Command &cmd)
 {
 	if (cmd.params.empty())
@@ -429,7 +536,7 @@ void	CommandHandler::handlePING(const Command &cmd)
 		return;
 	}
 	std::string reply = "PONG " + cmd.params[0] + "\r\n";
-	send(_client._fd, reply.c_str(), reply.size(), 0);
+	_server.queueMessage(&_client, reply);
 	std::cout << "[PING] from fd " << _client._fd << " -> reply \"" << reply << "\"\n";
 }
 

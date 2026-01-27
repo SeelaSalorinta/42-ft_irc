@@ -32,7 +32,7 @@ void	Channel::removeClient(Client* client)
 void	Channel::broadcast(const std::string &message)
 {
 	for (std::vector<Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it)
-		send((*it)->_fd, message.c_str(), message.size(), 0);
+		(*it)->_sendBuffer.append(message);
 }
 
 void	Channel::broadcastExcept(const std::string &message, Client* except)
@@ -41,7 +41,7 @@ void	Channel::broadcastExcept(const std::string &message, Client* except)
 	{
 		if (*it == except)
 			continue;
-		send((*it)->_fd, message.c_str(), message.size(), 0);
+		(*it)->_sendBuffer.append(message);
 	}
 }
 

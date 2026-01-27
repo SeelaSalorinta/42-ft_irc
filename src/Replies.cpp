@@ -1,12 +1,14 @@
 #include "Replies.hpp"
 #include "Client.hpp"
+#include "Server.hpp"
 
 static const std::string SERVERNAME = "ft_irc";
 
 void	sendReply(Client &client, const std::string &code, const std::string &message)
 {
 	std::string full = ":" + SERVERNAME + " " + code + " " + client._nickname + " :" + message + "\r\n";
-	send(client._fd, full.c_str(), full.size(), 0);
+	if (client._server)
+		client._server->queueMessage(&client, full);
 }
 
 void	sendRPL_WELCOME(Client &client)
@@ -92,4 +94,3 @@ void sendRPL_CHANNELMODEIS(Client& client, const std::string& channel, const std
 	// 324 <nick> <channel> <modes> [mode params]
 	sendReply(client, "324", channel + " " + modes + args);
 }
-

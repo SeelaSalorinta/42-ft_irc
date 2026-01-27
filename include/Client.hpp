@@ -4,6 +4,7 @@
 #include <vector>
 
 class Channel;
+class Server;
 
 class Client
 {
@@ -11,6 +12,7 @@ class Client
 		std::vector<Channel*> _joinedChannels;
 	public:
 		int	_fd; // socket file descriptor
+		Server* _server;
 		std::string	_recvBuffer; // unfinished incoming data
 		std::string	_sendBuffer; // outgoing messages
 
@@ -24,7 +26,7 @@ class Client
 		bool	_isRegistered;
 
 
-		Client(int fd);
+		Client(int fd, Server* server);
 
 		const std::vector<Channel*>&	getJoinedChannels() const;
 		void	joinChannel(Channel* channel);
