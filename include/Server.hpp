@@ -44,5 +44,6 @@ class Server
 		Client*	getClientByNick(const std::string& nick);
 		void	queueMessage(Client* client, const std::string& data);
 		void disconnectClient(int fd, const std::string& reason);
+		void destroyChannelIfEmpty(Channel* channel);
 
 };

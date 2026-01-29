@@ -1,5 +1,6 @@
 #include "Client.hpp"
 #include "Channel.hpp"
+#include "Server.hpp"
 
 Client::Client(int fd, Server* server)
 : _fd(fd), _server(server), _hasPass(false), _hasNick(false), _hasUser(false), _isRegistered(false)
@@ -21,8 +22,13 @@ void	Client::leaveChannel(Channel* channel)
 	// Remove client from the channel's client list
 	channel->removeClient(this);
 
+	channel->removeOperator(this);
+
 	// Remove channel from client's joinedChannels list
 	_joinedChannels.erase(
 	std::remove(_joinedChannels.begin(), _joinedChannels.end(), channel),
 	_joinedChannels.end());
+	if (_server)
+		_server->destroyChannelIfEmpty(channel);
+	
 }

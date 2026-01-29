@@ -79,9 +79,23 @@ void sendERR_CHANNELISFULL(Client& client, const std::string& channel)
 	sendReply(client, "471", channel + " :Cannot join channel (+l)");
 }
 
-void sendERR_INVITEONLYCHAN(Client& client, const std::string& channel)
+/*void sendERR_INVITEONLYCHAN(Client& client, const std::string& channel)
 {
 	sendReply(client, "473", channel + " :Cannot join channel (+i)");
+}*/
+
+void sendReply2(Client& client, const std::string& code,
+	const std::string& p1, const std::string& trailing)
+{
+	std::string full = ":" + SERVERNAME + " " + code + " " +
+		client._nickname + " " + p1 + " :" + trailing + "\r\n";
+	if (client._server)
+		client._server->queueMessage(&client, full);
+}
+
+void sendERR_INVITEONLYCHAN(Client& client, const std::string& channel)
+{
+	sendReply2(client, "473", channel, "Cannot join channel (+i)");
 }
 
 void sendERR_BADCHANNELKEY(Client& client, const std::string& channel)

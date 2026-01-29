@@ -270,3 +270,20 @@ void Server::queueMessage(Client* client, const std::string& data)
 		return;
 	client->_sendBuffer.append(data);
 }
+
+void Server::destroyChannelIfEmpty(Channel* channel)
+{
+	if (!channel)
+		return;
+
+	if (!channel->getClients().empty())
+		return;
+
+	// erase from map + delete
+	std::map<std::string, Channel*>::iterator it = _channels.find(channel->getName());
+	if (it != _channels.end())
+		_channels.erase(it);
+
+	delete channel;
+}
+
