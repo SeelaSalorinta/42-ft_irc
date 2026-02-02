@@ -381,7 +381,10 @@ void	CommandHandler::handleNICK(const Command &cmd)
 	const std::string& newNick = cmd.params[0];
 	Client* existing = _server.getClientByNick(newNick);
 	if (existing && existing != &_client)
-		return sendReply(_client, "433", newNick + " :Nickname is already in use");
+	{
+		std::string cur = _client._hasNick ? _client._nickname : "*";
+		return sendReply(_client, "433", cur + " " + newNick + " :Nickname is already in use");
+	}
 
 	_client._nickname = newNick;
 	_client._hasNick = true;

@@ -161,23 +161,25 @@ void Server::handleClient(std::size_t index)
 	client->_recvBuffer.append(buf, n);
 	while (true)
 	{
-		std::size_t pos = client->_recvBuffer.find("\r\n"); //add r later!! this for netcat
+		std::size_t pos = client->_recvBuffer.find('\n');
 		if (pos == std::string::npos)
-			break; // no complete line yet, wait for more data
-
-		// Take the line (without "\r\n")
+			break;
+	
 		std::string line = client->_recvBuffer.substr(0, pos);
-		// Remove that line + "\r\n" from the buffer
-		client->_recvBuffer.erase(0, pos + 2); //add +2 later !!! this is fr netcat fornow
-
+		client->_recvBuffer.erase(0, pos + 1);
+	
+		if (!line.empty() && line[line.size() - 1] == '\r')
+			line.erase(line.size() - 1);
+	
 		if (line.empty())
 			continue;
-
-		std::cout << "REcieved line " << line << std::endl;
+	
+		std::cout << "Received line " << line << std::endl;
 		Command cmd = parseCommand(line);
 		CommandHandler handler(*this, *client);
-		handler.handleCommand(cmd); 
+		handler.handleCommand(cmd);
 	}
+	
 
 	//IN COMMENTS FOR NOW
 	/*ssize_t sent = send(fd, buf, static_cast<std::size_t>(n), 0);
