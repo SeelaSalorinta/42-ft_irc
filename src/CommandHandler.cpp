@@ -13,14 +13,18 @@ CommandHandler::CommandHandler(Server &server, Client &client)
 
 void	CommandHandler::handleCommand(const Command &cmd)
 {
-	if (cmd.name == "CAP")
+	if (cmd.name == "CAP" || cmd.name == "WHOIS")
 		return;
 
 	if (cmd.name == "PASS")
 		return handlePASS(cmd);
+
 	if (!_client._hasPass)
 	{
-		sendReply(_client, "ERROR", "You must send PASS before other commands");
+		if (cmd.name == "NICK") return handleNICK(cmd);
+		if (cmd.name == "USER") return handleUSER(cmd);
+		if (cmd.name == "PING") return handlePING(cmd);
+		if (cmd.name == "QUIT") return handleQUIT(cmd); 
 		return;
 	}
 	if (!_client._isRegistered
@@ -34,7 +38,6 @@ void	CommandHandler::handleCommand(const Command &cmd)
 		return;
 	}
 
-	//THINK BETTER WAY TO HANDLE
 	struct Entry { const char* name; void (CommandHandler::*fn)(const Command&); };
 	static const Entry table[] = {
 		{"NICK", &CommandHandler::handleNICK},
@@ -57,8 +60,7 @@ void	CommandHandler::handleCommand(const Command &cmd)
 			return (this->*(table[i].fn))(cmd);
 	}
 
-	// fallback for unknown commands
-	sendReply(_client, "ERROR", "Unknown command");
+	sendReply(_client, "421", cmd.name + " :Unknown command");
 }
 
 void CommandHandler::handleQUIT(const Command& cmd)
@@ -93,16 +95,19 @@ void CommandHandler::handleMODE(const Command& cmd)
 	if (cmd.params.size() < 1)
 		return sendERR_NEEDMOREPARAMS(_client, "MODE");
 
+	//ignor irssis mode send
+	const std::string& target = cmd.params[0];
+	if (!target.empty() && target[0] != '#')
+		return;
+	
 	const std::string& channelName = cmd.params[0];
 	Channel* channel = _server.getChannel(channelName);
 	if (!channel)
 		return sendERR_NOSUCHCHANNEL(_client, channelName);
 
-	//is necessary that you are on the channel or no?
 	if (!channel->hasClient(&_client))
 		return sendERR_CLIENTNOTINCHANNEL(_client, channelName);
 
-	// MODE #chan  -> query current modes
 	if (cmd.params.size() == 1)
 	{
 		std::string modes = "+";
@@ -137,7 +142,6 @@ void CommandHandler::handleMODE(const Command& cmd)
 		return sendRPL_CHANNELMODEIS(_client, channelName, modes, args);
 	}
 
-	// changing modes needs an operator
 	if (!channel->isOperator(&_client))
 	{
 		//debug print delete laterr
@@ -241,9 +245,7 @@ void CommandHandler::handleMODE(const Command& cmd)
 			appliedArgs += " " + nick;
 		}
 		else
-		{
 			return sendERR_UNKNOWNMODE(_client, m, channelName);
-		}
 	}
 
 	if (appliedModes.empty())
@@ -321,27 +323,23 @@ void CommandHandler::handlePRIVMSG(const Command &cmd)
 
 void	CommandHandler::handlePART(const Command &cmd)
 {
-	if (cmd.params.size() != 1)
-	{
-		sendERR_NEEDMOREPARAMS(_client, "PART");
-		return;
-	}
+	if (cmd.params.size() < 1)
+		return sendERR_NEEDMOREPARAMS(_client, "PART");
+
 	std::string channelName = cmd.params[0];
 	if (channelName.empty() || channelName[0] != '#')
-	{
-		sendERR_NOSUCHCHANNEL(_client, channelName);
-		return;
-	}
+		return sendERR_NOSUCHCHANNEL(_client, channelName);
 
 	Channel* channel = _server.getChannel(channelName);
 	if (!channel)
-	{
-		sendERR_NOSUCHCHANNEL(_client, channelName);
-		return;
-	}
+		return sendERR_NOSUCHCHANNEL(_client, channelName);
+
 	if (!channel->hasClient(&_client))
 		return sendERR_CLIENTNOTINCHANNEL(_client, channelName);
-	std::string msg = makePrefix(_client) + "PART " + channelName + "\r\n";
+	std::string reason = "";
+	if (cmd.params.size() >= 2)
+		reason = cmd.params[1];
+	std::string msg = makePrefix(_client) + "PART " + channelName + " :" + reason + "\r\n";
 	channel->broadcast(msg);
 	std::cout << "[PART] " << _client._nickname << " part " << channelName << "\n";
 		//poista client kyseiseltä kanavalta
@@ -352,21 +350,16 @@ void	CommandHandler::handlePART(const Command &cmd)
 void	CommandHandler::handlePASS(const Command &cmd)
 {
 	if (cmd.params.size() != 1)
-	{
-		sendERR_NEEDMOREPARAMS(_client, "PASS");
-		return;
-	}
-	if (_client._isRegistered || _client._hasNick || _client._hasUser)
-	{
-		sendERR_ALREADYREGISTERED(_client);
-		return;
-	}
+		return sendERR_NEEDMOREPARAMS(_client, "PASS");
+
+	if (_client._isRegistered || _client._hasPass)
+		return sendERR_ALREADYREGISTERED(_client);
+
 	if (cmd.params[0] != _server.getPassword())
-	{
-		sendERR_PASSWDMISMATCH(_client);
-		return;
-	}
+		return sendERR_PASSWDMISMATCH(_client);
+
 	_client._hasPass = true;
+	//debug print
 	std::cout << "[PASS] accepted for fd " << _client._fd << std::endl;
 	tryRegister();
 }
@@ -374,10 +367,8 @@ void	CommandHandler::handlePASS(const Command &cmd)
 void	CommandHandler::handleNICK(const Command &cmd)
 {
 	if (cmd.params.size() != 1)
-	{
-		sendERR_NEEDMOREPARAMS(_client, "NICK");
-		return;
-	}
+		return sendERR_NEEDMOREPARAMS(_client, "NICK");
+
 	const std::string& newNick = cmd.params[0];
 	Client* existing = _server.getClientByNick(newNick);
 	if (existing && existing != &_client)
@@ -388,6 +379,7 @@ void	CommandHandler::handleNICK(const Command &cmd)
 
 	_client._nickname = newNick;
 	_client._hasNick = true;
+	//debug print
 	std::cout << "[NICK] set to \"" << _client._nickname << "\" for fd " << _client._fd << std::endl;
 	tryRegister();
 }
@@ -395,15 +387,14 @@ void	CommandHandler::handleNICK(const Command &cmd)
 void	CommandHandler::handleUSER(const Command &cmd)
 {
 	if (cmd.params.size() != 4)
-	{
-		sendERR_NEEDMOREPARAMS(_client, "USER");
-		return;
-	}
+		return sendERR_NEEDMOREPARAMS(_client, "USER");
+
 	if (cmd.params[1] != "0" || cmd.params[2] != "*")
 		return;
 	_client._username = cmd.params[0];
 	_client._realname = cmd.params[3];
 	_client._hasUser = true;
+	//debugprint
 	std::cout << "[USER] set to username \"" << _client._username
 			  << "\", realname \"" << _client._realname
 			  << "\" for fd " << _client._fd << std::endl;
@@ -413,10 +404,8 @@ void	CommandHandler::handleUSER(const Command &cmd)
 void	CommandHandler::handleJOIN(const Command &cmd)
 {
 	if (cmd.params.empty())
-	{
-		sendERR_NEEDMOREPARAMS(_client, "JOIN");
-		return;
-	}
+		return sendERR_NEEDMOREPARAMS(_client, "JOIN");
+
 	std::string channelName = cmd.params[0];
 	Channel	*channel = _server.getOrCreateChannel(channelName);
 	if (channel->hasClient(&_client))
@@ -440,7 +429,8 @@ void	CommandHandler::handleJOIN(const Command &cmd)
 	if (firstJoiner) //first joiner gets operaator rights?
 		channel->addOperator(&_client);
 	std::string msg = makePrefix(_client) + "JOIN " + channelName + "\r\n";
-	channel->broadcast(msg);	
+	channel->broadcast(msg);
+	//debug print
 	std::cout << "[JOIN] " << _client._nickname << " joined " << channelName << "\n";
 }
 
@@ -534,10 +524,8 @@ void CommandHandler::handleKICK(const Command& cmd)
 void	CommandHandler::handlePING(const Command &cmd)
 {
 	if (cmd.params.empty())
-	{
-		sendERR_NEEDMOREPARAMS(_client, "PING");
-		return;
-	}
+		return sendERR_NEEDMOREPARAMS(_client, "PING");
+
 	std::string reply = "PONG " + cmd.params[0] + "\r\n";
 	_server.queueMessage(&_client, reply);
 	std::cout << "[PING] from fd " << _client._fd << " -> reply \"" << reply << "\"\n";
@@ -552,5 +540,6 @@ void	CommandHandler::tryRegister()
 
 	_client._isRegistered = true;
 	sendRPL_WELCOME(_client);
+	//debug print
 	std::cout << "[REGISTER] fd " << _client._fd << " registered as " << _client._nickname << "\n";
 }

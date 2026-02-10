@@ -17,8 +17,7 @@
 
 Server::Server(int port, const std::string &password)
 	: _port(port), _password(password), _listenFd(-1), _running(false)
-{
-}
+{}
 
 Server::~Server()
 {
@@ -33,7 +32,6 @@ const std::string& Server::getPassword() const
 
 bool Server::setNonBlocking(int fd)
 {
-	// Evaluation sheet: only allow this exact call form.
 	return fcntl(fd, F_SETFL, O_NONBLOCK) != -1;
 }
 
@@ -93,17 +91,25 @@ void Server::eventLoop()
 		if (_pollFds[0].revents & POLLIN)
 			acceptNewClients();
 
-		for (std::size_t i = 1; i < _pollFds.size(); ++i)
+		for (std::size_t i = 1; i < _pollFds.size(); )
 		{
+			int fd = _pollFds[i].fd;
+			
 			if (_pollFds[i].revents & (POLLHUP | POLLERR | POLLNVAL))
 			{
-				dropClient(_pollFds[i].fd, "disconnect");
+				dropClient(fd, "disconnect");
 				continue;
 			}
+
 			if (_pollFds[i].revents & POLLIN)
 				handleClient(i);
+
+			if (i >= _pollFds.size() || _pollFds[i].fd != fd)
+				continue;
+			
 			if (_pollFds[i].revents & POLLOUT)
 				handleWritable(i);
+			++i;
 		}
 	}
 }
@@ -207,9 +213,9 @@ void	Server::dropClient(int fd, const char *reason)
 	{
 		Client* client = it->second;
 
-		const std::vector<Channel*>& chans = client->getJoinedChannels();
-		for (std::size_t i = 0; i < chans.size(); ++i)
-			client->leaveChannel(chans[i]);
+		std::vector<Channel*> chans = client->getJoinedChannels();
+		for (size_t i = 0; i < chans.size(); ++i)
+			client->leaveChannel(chans[i]);		
 
 		delete client;
 		_clients.erase(it);

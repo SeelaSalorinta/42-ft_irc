@@ -2,10 +2,10 @@
 #include "Client.hpp"
 
 Channel::Channel(const std::string& name)
-: _name(name), _topic(""),
-  _inviteOnly(false), _topicOpOnly(false),
-  _key(""), _hasKey(false),
-  _userLimit(0), _hasLimit(false)
+	: _name(name), _topic(""),
+	_inviteOnly(false), _topicOpOnly(false),
+	_key(""), _hasKey(false),
+	_userLimit(0), _hasLimit(false)
 {}
 
 const std::string&	Channel::getName() const

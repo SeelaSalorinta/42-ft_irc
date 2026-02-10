@@ -12,7 +12,6 @@ class Server
 {
 	private:
 		Server(const Server &);
-		Server &operator=(const Server &);
 
 		int _port;
 		std::string _password;
