@@ -13,8 +13,16 @@ CommandHandler::CommandHandler(Server &server, Client &client)
 
 void	CommandHandler::handleCommand(const Command &cmd)
 {
-	if (cmd.name == "CAP" || cmd.name == "WHOIS")
+	if (cmd.name == "WHOIS")
 		return;
+	
+	if (cmd.name == "CAP")
+	{
+		std::string nick = _client._hasNick ? _client._nickname : "*";
+		std::string msg = ":ft_irc CAP " + nick + " LS :\r\n";
+		_server.queueMessage(&_client, msg);
+		return;
+	}
 
 	if (cmd.name == "PASS")
 		return handlePASS(cmd);
@@ -387,17 +395,18 @@ void	CommandHandler::handleNICK(const Command &cmd)
 void	CommandHandler::handleUSER(const Command &cmd)
 {
 	if (cmd.params.size() != 4)
-		return sendERR_NEEDMOREPARAMS(_client, "USER");
+	return sendERR_NEEDMOREPARAMS(_client, "USER");
 
-	if (cmd.params[1] != "0" || cmd.params[2] != "*")
-		return;
 	_client._username = cmd.params[0];
 	_client._realname = cmd.params[3];
 	_client._hasUser = true;
-	//debugprint
-	std::cout << "[USER] set to username \"" << _client._username
-			  << "\", realname \"" << _client._realname
-			  << "\" for fd " << _client._fd << std::endl;
+
+	std::cout << "[USER] set to username \""
+			<< _client._username
+			<< "\" realname \""
+			<< _client._realname
+			<< "\"\n";
+
 	tryRegister();
 }
 
