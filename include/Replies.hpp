@@ -1,11 +1,15 @@
 #pragma once
 
 #include <string>
-#include <sys/socket.h> // send()
+#include <sys/socket.h>
+#include <vector>
 
 class Client;
 
 void	sendReply(Client &client, const std::string &code, const std::string &message);
+void sendNumeric(Client& client, const std::string& code,
+	const std::vector<std::string>& params, const std::string& trailing);
+
 
 void	sendRPL_WELCOME(Client &client);
 void	sendERR_ALREADYREGISTERED(Client &client);

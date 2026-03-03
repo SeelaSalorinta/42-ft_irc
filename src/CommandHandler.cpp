@@ -127,9 +127,6 @@ void CommandHandler::handleMODE(const Command& cmd)
 			modes += "k";
 		if (channel->hasLimit())
 			modes += "l";
-
-		if (channel->hasKey())
-			args += " " + channel->getKey();
 		if (channel->hasLimit())
 		{
 			std::ostringstream oss;
@@ -160,7 +157,8 @@ void CommandHandler::handleMODE(const Command& cmd)
 	bool adding = true;
 	std::size_t paramIndex = 2;
 
-	std::string appliedModes;
+	std::string plusModes;
+	std::string minusModes;
 	std::string appliedArgs;
 
 	for (std::size_t i = 0; i < modeStr.size(); ++i)
@@ -174,13 +172,15 @@ void CommandHandler::handleMODE(const Command& cmd)
 		if (m == 'i')
 		{
 			channel->setInviteOnly(adding);
-			appliedModes += (adding ? "+i" : "-i");
+			if (adding) plusModes += 'i';
+			else minusModes += 'i';
 		}
 		// t: topic op-only (no param)
 		else if (m == 't')
 		{
 			channel->setTopicOpOnly(adding);
-			appliedModes += (adding ? "+t" : "-t");
+			if (adding) plusModes += 't';
+			else minusModes += 't';
 		}
 		// k: key (param when adding, no param when removing)
 		else if (m == 'k')
@@ -191,13 +191,13 @@ void CommandHandler::handleMODE(const Command& cmd)
 					return sendERR_NEEDMOREPARAMS(_client, "MODE");
 				const std::string& key = cmd.params[paramIndex++];
 				channel->setKey(key);
-				appliedModes += "+k";
+				plusModes += 'k';
 				appliedArgs += " " + key;
 			}
 			else
 			{
 				channel->clearKey();
-				appliedModes += "-k";
+				minusModes += 'k';
 			}
 		}
 		// l: limit (param when adding, no param when removing)
@@ -207,22 +207,22 @@ void CommandHandler::handleMODE(const Command& cmd)
 			{
 				if (paramIndex >= cmd.params.size())
 					return sendERR_NEEDMOREPARAMS(_client, "MODE");
-
+		
 				const std::string& limStr = cmd.params[paramIndex++];
 				std::istringstream iss(limStr);
 				long lim = 0;
 				iss >> lim;
 				if (lim <= 0)
 					return;
-
+		
 				channel->setLimit(static_cast<size_t>(lim));
-				appliedModes += "+l";
+				plusModes += 'l';
 				appliedArgs += " " + limStr;
 			}
 			else
 			{
 				channel->clearLimit();
-				appliedModes += "-l";
+				minusModes += 'l';
 			}
 		}
 		// o: operator (needs nick param)
@@ -230,33 +230,39 @@ void CommandHandler::handleMODE(const Command& cmd)
 		{
 			if (paramIndex >= cmd.params.size())
 				return sendERR_NEEDMOREPARAMS(_client, "MODE");
-
+	
 			const std::string& nick = cmd.params[paramIndex++];
 			Client* target = _server.getClientByNick(nick);
 			if (!target)
 				return sendERR_NOSUCHNICK(_client, nick);
 			if (!channel->hasClient(target))
 				return sendERR_USERNOTINCHANNEL(_client, nick, channelName);
-
+		
 			if (adding)
 			{
 				channel->addOperator(target);
-				appliedModes += "+o";
+				plusModes += 'o';
 			}
 			else
 			{
 				channel->removeOperator(target);
-				appliedModes += "-o";
+				minusModes += 'o';
 			}
 			appliedArgs += " " + nick;
-		}
+			}
 		else
 			return sendERR_UNKNOWNMODE(_client, m, channelName);
 	}
 
+	std::string appliedModes;
+	if (!plusModes.empty())
+		appliedModes += "+" + plusModes;
+	if (!minusModes.empty())
+		appliedModes += "-" + minusModes;
+	
 	if (appliedModes.empty())
 		return;
-
+	
 	std::string msg = makePrefix(_client) + "MODE " + channelName + " " + appliedModes + appliedArgs + "\r\n";
 	channel->broadcast(msg);
 }
@@ -414,6 +420,8 @@ void	CommandHandler::handleJOIN(const Command &cmd)
 		return sendERR_NEEDMOREPARAMS(_client, "JOIN");
 
 	std::string channelName = cmd.params[0];
+	if (channelName.empty() || channelName[0] != '#')
+		return sendERR_NOSUCHCHANNEL(_client, channelName);
 	Channel	*channel = _server.getOrCreateChannel(channelName);
 	if (channel->hasClient(&_client))
 		return;

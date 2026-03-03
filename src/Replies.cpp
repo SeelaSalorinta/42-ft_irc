@@ -101,7 +101,38 @@ void sendERR_BADCHANNELKEY(Client& client, const std::string& channel)
 	sendReply(client, "475", channel + " :Cannot join channel (+k)");
 }
 
-void sendRPL_CHANNELMODEIS(Client& client, const std::string& channel, const std::string& modes, const std::string& args)
+void sendNumeric(Client& client, const std::string& code,
+	const std::vector<std::string>& params, const std::string& trailing)
 {
-	sendReply(client, "324", channel + " " + modes + args);
+	std::string full = ":" + SERVERNAME + " " + code + " " + client._nickname;
+
+	for (size_t i = 0; i < params.size(); ++i)
+		full += " " + params[i];
+
+	if (!trailing.empty())
+		full += " :" + trailing;
+
+	full += "\r\n";
+
+	if (client._server)
+		client._server->queueMessage(&client, full);
+}
+
+void sendRPL_CHANNELMODEIS(Client& client, const std::string& channel,
+	const std::string& modes, const std::string& args)
+{
+	std::vector<std::string> params;
+	params.push_back(channel);
+	params.push_back(modes);
+
+	if (!args.empty())
+	{
+		std::string a = args;
+		if (!a.empty() && a[0] == ' ')
+			a.erase(0, 1);
+		if (!a.empty())
+			params.push_back(a);
+	}
+
+	sendNumeric(client, "324", params, "");
 }
