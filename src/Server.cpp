@@ -65,6 +65,7 @@ void Server::setupListeningSocket()
 	pfd.revents = 0;
 	_pollFds.push_back(pfd);
 
+	//debug print
 	std::cout << "Listening on port " << _port << std::endl;
 }
 
@@ -87,7 +88,6 @@ void Server::eventLoop()
 			throw std::runtime_error("poll failed");
 		}
 
-		// Accept new clients if listener is ready
 		if (_pollFds[0].revents & POLLIN)
 			acceptNewClients();
 
@@ -131,7 +131,7 @@ void Server::acceptNewClients()
 			continue;
 		}
 
-		 //create new client object
+
 		_clients[clientFd] = new Client(clientFd, this);
 
 		pollfd pfd;
@@ -140,6 +140,7 @@ void Server::acceptNewClients()
 		pfd.revents = 0;
 		_pollFds.push_back(pfd);
 
+		//debug print
 		std::cout << "Client connected fd=" << clientFd << std::endl;
 	}
 }
@@ -155,7 +156,7 @@ void Server::handleClient(std::size_t index)
 	}
 	
 	Client* client = _clients[fd];
-	//read from socket
+
 	ssize_t n = recv(fd, buf, sizeof(buf), 0);
 	if (n <= 0)
 	{
@@ -163,7 +164,7 @@ void Server::handleClient(std::size_t index)
 			dropClient(fd, "recv error");
 		return;
 	}
-	// append new data to this client's buffer
+
 	client->_recvBuffer.append(buf, n);
 	while (true)
 	{
@@ -180,23 +181,17 @@ void Server::handleClient(std::size_t index)
 		if (line.empty())
 			continue;
 	
+		//debug print!
 		std::cout << "Received line " << line << std::endl;
 		Command cmd = parseCommand(line);
 		CommandHandler handler(*this, *client);
 		handler.handleCommand(cmd);
 	}
-	
-
-	//IN COMMENTS FOR NOW
-	/*ssize_t sent = send(fd, buf, static_cast<std::size_t>(n), 0);
-	if (sent < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
-	{
-		dropClient(fd, "send error");
-	}*/
 }
 
 void	Server::dropClient(int fd, const char *reason)
 {
+	//debug print??
 	std::cout << "Closing fd=" << fd << " (" << reason << ")" << std::endl;
 	close(fd);
 	for (std::vector<struct pollfd>::iterator it = _pollFds.begin(); it != _pollFds.end(); ++it)
@@ -207,7 +202,7 @@ void	Server::dropClient(int fd, const char *reason)
 			break;
 		}
 	}
-	// poista client channeleilta
+
 	std::map<int, Client*>::iterator it = _clients.find(fd);
 	if (it != _clients.end())
 	{
@@ -215,7 +210,7 @@ void	Server::dropClient(int fd, const char *reason)
 
 		std::vector<Channel*> chans = client->getJoinedChannels();
 		for (size_t i = 0; i < chans.size(); ++i)
-			client->leaveChannel(chans[i]);		
+			client->leaveChannel(chans[i]);
 
 		delete client;
 		_clients.erase(it);
@@ -237,7 +232,7 @@ void Server::handleWritable(std::size_t index)
 		if (n < 0)
 		{
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
-				return; // try later
+				return;
 			dropClient(fd, "send error");
 			return;
 		}
@@ -287,7 +282,6 @@ void Server::destroyChannelIfEmpty(Channel* channel)
 	if (!channel->getClients().empty())
 		return;
 
-	// erase from map + delete
 	std::map<std::string, Channel*>::iterator it = _channels.find(channel->getName());
 	if (it != _channels.end())
 		_channels.erase(it);

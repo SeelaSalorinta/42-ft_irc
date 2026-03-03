@@ -45,14 +45,17 @@ void sendERR_NOSUCHNICK(Client &client, const std::string &nick)
 {
 	sendReply(client, "401", nick + " :No such nick/channel");
 }
+
 void sendERR_CANNOTSENDTOCHAN(Client& client, const std::string& channel)
 {
 	sendReply(client, "404", channel + " :Cannot send to channel");
 }
+
 void sendERR_NORECIPIENT(Client& client, const std::string& cmd)
 {
 	sendReply(client, "411", cmd + " :No recipient given");
 }
+
 void sendERR_NOTEXTTOSEND(Client& client)
 {
 	sendReply(client, "412", ":No text to send");
@@ -79,11 +82,6 @@ void sendERR_CHANNELISFULL(Client& client, const std::string& channel)
 	sendReply(client, "471", channel + " :Cannot join channel (+l)");
 }
 
-/*void sendERR_INVITEONLYCHAN(Client& client, const std::string& channel)
-{
-	sendReply(client, "473", channel + " :Cannot join channel (+i)");
-}*/
-
 void sendReply2(Client& client, const std::string& code,
 	const std::string& p1, const std::string& trailing)
 {
@@ -105,6 +103,5 @@ void sendERR_BADCHANNELKEY(Client& client, const std::string& channel)
 
 void sendRPL_CHANNELMODEIS(Client& client, const std::string& channel, const std::string& modes, const std::string& args)
 {
-	// 324 <nick> <channel> <modes> [mode params]
 	sendReply(client, "324", channel + " " + modes + args);
 }

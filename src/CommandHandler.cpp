@@ -5,7 +5,6 @@
 #include "Replies.hpp"
 #include "Channel.hpp"
 
-// Forward declaration for helper used across handlers
 static std::string	makePrefix(const Client& c);
 
 CommandHandler::CommandHandler(Server &server, Client &client)
@@ -41,7 +40,6 @@ void	CommandHandler::handleCommand(const Command &cmd)
 		&& cmd.name != "QUIT"
 		&& cmd.name != "PING")
 	{
-		// ERR_NOTREGISTERED
 		sendReply(_client, "451", "You have not registered");
 		return;
 	}
@@ -160,9 +158,9 @@ void CommandHandler::handleMODE(const Command& cmd)
 	const std::string& modeStr = cmd.params[1];
 
 	bool adding = true;
-	std::size_t paramIndex = 2; // next params used by modes needing args
+	std::size_t paramIndex = 2;
 
-	std::string appliedModes; // for broadcasting
+	std::string appliedModes;
 	std::string appliedArgs;
 
 	for (std::size_t i = 0; i < modeStr.size(); ++i)
@@ -215,7 +213,7 @@ void CommandHandler::handleMODE(const Command& cmd)
 				long lim = 0;
 				iss >> lim;
 				if (lim <= 0)
-					return; //should throw error or not?
+					return;
 
 				channel->setLimit(static_cast<size_t>(lim));
 				appliedModes += "+l";
@@ -259,7 +257,6 @@ void CommandHandler::handleMODE(const Command& cmd)
 	if (appliedModes.empty())
 		return;
 
-	// Broadcast to channel: :nick!user@localhost MODE #chan <appliedModes> <args>
 	std::string msg = makePrefix(_client) + "MODE " + channelName + " " + appliedModes + appliedArgs + "\r\n";
 	channel->broadcast(msg);
 }
@@ -267,7 +264,7 @@ void CommandHandler::handleMODE(const Command& cmd)
 void CommandHandler::handleNOTICE(const Command& cmd)
 {
 	if (cmd.params.size() < 2)
-		return; // no errors for NOTICE
+		return;
 
 	const std::string& target = cmd.params[0];
 	const std::string& message = cmd.params[1];
@@ -313,7 +310,7 @@ void CommandHandler::handlePRIVMSG(const Command &cmd)
 		if (!channel)
 			return sendERR_NOSUCHCHANNEL(_client, target);
 		if (!channel->hasClient(&_client))
-			return sendERR_CANNOTSENDTOCHAN(_client, target); // tai 442, mutta 404 on “send” kontekstissa parempi
+			return sendERR_CANNOTSENDTOCHAN(_client, target);
 
 		std::string msg = makePrefix(_client) + "PRIVMSG " + target + " :" + message + "\r\n";
 		channel->broadcastExcept(msg, &_client);
@@ -349,8 +346,8 @@ void	CommandHandler::handlePART(const Command &cmd)
 		reason = cmd.params[1];
 	std::string msg = makePrefix(_client) + "PART " + channelName + " :" + reason + "\r\n";
 	channel->broadcast(msg);
+	//debug print
 	std::cout << "[PART] " << _client._nickname << " part " << channelName << "\n";
-		//poista client kyseiseltä kanavalta
 	_client.leaveChannel(channel);
 
 }
@@ -401,6 +398,7 @@ void	CommandHandler::handleUSER(const Command &cmd)
 	_client._realname = cmd.params[3];
 	_client._hasUser = true;
 
+	//debug print
 	std::cout << "[USER] set to username \""
 			<< _client._username
 			<< "\" realname \""
@@ -435,7 +433,7 @@ void	CommandHandler::handleJOIN(const Command &cmd)
 	_client.joinChannel(channel);
 	if (channel->inviteOnly())
 		channel->consumeInvite(_client._nickname);	
-	if (firstJoiner) //first joiner gets operaator rights?
+	if (firstJoiner)
 		channel->addOperator(&_client);
 	std::string msg = makePrefix(_client) + "JOIN " + channelName + "\r\n";
 	channel->broadcast(msg);
@@ -455,15 +453,13 @@ void CommandHandler::handleTOPIC(const Command& cmd)
 	if (!channel->hasClient(&_client))
 		return sendERR_CLIENTNOTINCHANNEL(_client, channelName);
 
-	// View topic
 	if (cmd.params.size() == 1)
 	{
 		if (channel->getTopic().empty())
-			return sendReply(_client, "331", channelName + " :No topic is set"); // RPL_NOTOPIC
-		return sendReply(_client, "332", channelName + " :" + channel->getTopic()); // RPL_TOPIC
+			return sendReply(_client, "331", channelName + " :No topic is set");
+		return sendReply(_client, "332", channelName + " :" + channel->getTopic());
 	}
 
-	// Change topic requires operator if +t
 	if (channel->topicOpOnly() && !channel->isOperator(&_client))
 		return sendERR_CHANOPRIVSNEEDED(_client, channelName);
 
@@ -494,12 +490,12 @@ void CommandHandler::handleINVITE(const Command& cmd)
 	if (!target)
 		return sendERR_NOSUCHNICK(_client, nick);
 	if (channel->hasClient(target))
-		return sendReply(_client, "443", nick + " " + channelName + " :is already on channel"); // ERR_USERONCHANNEL
+		return sendReply(_client, "443", nick + " " + channelName + " :is already on channel");
 
 	channel->inviteNick(nick);
 	std::string inviteMsg = makePrefix(_client) + "INVITE " + nick + " " + channelName + "\r\n";
 	_server.queueMessage(target, inviteMsg);
-	sendReply(_client, "341", nick + " " + channelName); // RPL_INVITING
+	sendReply(_client, "341", nick + " " + channelName);
 }
 
 void CommandHandler::handleKICK(const Command& cmd)
@@ -537,6 +533,7 @@ void	CommandHandler::handlePING(const Command &cmd)
 
 	std::string reply = "PONG " + cmd.params[0] + "\r\n";
 	_server.queueMessage(&_client, reply);
+	//debug
 	std::cout << "[PING] from fd " << _client._fd << " -> reply \"" << reply << "\"\n";
 }
 

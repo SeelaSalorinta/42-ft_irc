@@ -14,7 +14,7 @@ Command	parseCommand(const std::string &line)
 		{
 			std::string rest;
 			std::getline(iss, rest);
-			word.erase(0, 1); // poista ':' alusta
+			word.erase(0, 1);
 			cmd.params.push_back(word + rest);
 			break;
 		}

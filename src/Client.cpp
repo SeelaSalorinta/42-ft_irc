@@ -20,11 +20,9 @@ void	Client::joinChannel(Channel* channel)
 
 void	Client::leaveChannel(Channel* channel)
 {
-	// Remove client from the channel's client list
 	channel->removeClient(this);
 	channel->removeOperator(this);
-
-	// Remove channel from client's joinedChannels list
+	
 	_joinedChannels.erase(
 	std::remove(_joinedChannels.begin(), _joinedChannels.end(), channel),
 	_joinedChannels.end());
