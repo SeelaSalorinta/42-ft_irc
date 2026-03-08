@@ -19,7 +19,7 @@ void	sendERR_CLIENTNOTINCHANNEL(Client &client, const std::string &command);
 void	sendERR_NOSUCHCHANNEL(Client &client, const std::string &command);
 void	sendERR_NOSUCHNICK(Client& client, const std::string& nick);
 void	sendERR_CANNOTSENDTOCHAN(Client& client, const std::string& channel);
-void	sendERR_NORECIPIENT(Client& client, const std::string& cmd);
+void	sendERR_NORECIPIENT(Client& client, const std::string& command);
 void	sendERR_NOTEXTTOSEND(Client& client);
 void	sendERR_CHANOPRIVSNEEDED(Client& client, const std::string& channel);
 void	sendERR_UNKNOWNMODE(Client& client, char mode, const std::string& channel);

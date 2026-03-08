@@ -1,10 +1,11 @@
 #include "Replies.hpp"
 #include "Client.hpp"
 #include "Server.hpp"
+#include <sstream>
 
 static const std::string SERVERNAME = "ft_irc";
 
-void	sendReply(Client &client, const std::string &code, const std::string &message)
+/*void	sendReply(Client &client, const std::string &code, const std::string &message)
 {
 	std::string full = ":" + SERVERNAME + " " + code + " " + client._nickname + " :" + message + "\r\n";
 	if (client._server)
@@ -18,7 +19,7 @@ void sendReply2(Client& client, const std::string& code,
 		client._nickname + " " + p1 + " :" + trailing + "\r\n";
 	if (client._server)
 		client._server->queueMessage(&client, full);
-}
+}*/
 
 void sendNumeric(Client& client, const std::string& code,
 	const std::vector<std::string>& params, const std::string& trailing)
@@ -37,6 +38,15 @@ void sendNumeric(Client& client, const std::string& code,
 		client._server->queueMessage(&client, full);
 }
 
+void sendReply(Client &client, const std::string &code, const std::string &trailing)
+{
+	std::string full = ":" + SERVERNAME + " " + code + " " +
+		client._nickname + " :" + trailing + "\r\n";
+
+	if (client._server)
+		client._server->queueMessage(&client, full);
+}
+
 void	sendRPL_WELCOME(Client &client)
 {
 	sendReply(client, "001", "Welcome to " + SERVERNAME);
@@ -49,17 +59,20 @@ void	sendERR_ALREADYREGISTERED(Client &client)
 
 void	sendERR_NOSUCHCHANNEL(Client &client, const std::string &command)
 {
-	sendReply(client, "403", command + " :No such channel");
+	//sendReply(client, "403", command + " :No such channel");
+	sendNumeric(client, "403", std::vector<std::string>(1, command), "No such channel");
 }
 
 void	sendERR_CLIENTNOTINCHANNEL(Client &client, const std::string &command)
 {
-	sendReply(client, "442", command + " :Client is not part of channel");
+	//sendReply(client, "442", command + " :Client is not part of channel");
+	sendNumeric(client, "442", std::vector<std::string>(1, command), "Client is not part of channel");
 }
 
 void	sendERR_NEEDMOREPARAMS(Client &client, const std::string &command)
 {
-	sendReply(client, "461", command + " :Not enough parameters");
+	//sendReply(client, "461", command + " :Not enough parameters");
+	sendNumeric(client, "461", std::vector<std::string>(1, command), "Not enough parameters");
 }
 
 void	sendERR_PASSWDMISMATCH(Client &client)
@@ -69,56 +82,66 @@ void	sendERR_PASSWDMISMATCH(Client &client)
 
 void sendERR_NOSUCHNICK(Client &client, const std::string &nick)
 {
-	sendReply(client, "401", nick + " :No such nick/channel");
+	//sendReply(client, "401", nick + " :No such nick/channel");
+	sendNumeric(client, "401", std::vector<std::string>(1, nick), "No such nick/channel");
 }
 
 void sendERR_CANNOTSENDTOCHAN(Client& client, const std::string& channel)
 {
-	sendReply(client, "404", channel + " :Cannot send to channel");
+	//sendReply(client, "404", channel + " :Cannot send to channel");
+	sendNumeric(client, "404", std::vector<std::string>(1, channel), "Cannot send to channel");
 }
 
-void sendERR_NORECIPIENT(Client& client, const std::string& cmd)
+void sendERR_NORECIPIENT(Client& client, const std::string& command)
 {
-	sendReply(client, "411", cmd + " :No recipient given");
+	//sendReply(client, "411", cmd + " :No recipient given");
+	sendNumeric(client, "411", std::vector<std::string>(1, command), "No recipient given");
 }
 
 void sendERR_NOTEXTTOSEND(Client& client)
 {
-	sendReply(client, "412", ":No text to send");
+	sendReply(client, "412", "No text to send");
 }
 
 void sendERR_CHANOPRIVSNEEDED(Client& client, const std::string& channel)
 {
-	sendReply(client, "482", channel + " :You're not channel operator");
+	//sendReply(client, "482", channel + " :You're not channel operator");
+	sendNumeric(client, "482", std::vector<std::string>(1, channel), "You're not channel operator");
 }
 
 void sendERR_UNKNOWNMODE(Client& client, char mode, const std::string& channel)
 {
-	std::string m(1, mode);
-	sendReply(client, "472", m + " :is unknown mode char to me for " + channel);
+	//std::string m(1, mode);
+	//sendReply(client, "472", m + " :is unknown mode char to me for " + channel);
+	std::vector<std::string> params;
+	params.push_back(std::string(1, mode));
+
+	sendNumeric(client, "472", params, "is unknown mode char to me for " + channel);
 }
 
 void sendERR_USERNOTINCHANNEL(Client& client, const std::string& nick, const std::string& channel)
 {
-	sendReply(client, "441", nick + " " + channel + " :They aren't on that channel");
+	//sendReply(client, "441", nick + " " + channel + " :They aren't on that channel");
+	std::vector<std::string> params;
+	params.push_back(nick);
+	params.push_back(channel);
+
+	sendNumeric(client, "441", params, "They aren't on that channel");
 }
 
 void sendERR_CHANNELISFULL(Client& client, const std::string& channel)
 {
-	std::vector<std::string> params;
-	params.push_back(channel);
-
-	sendNumeric(client, "471", params, "Cannot join channel (+l)");
+	sendNumeric(client, "471", std::vector<std::string>(1, channel), "Cannot join channel (+l)");
 }
 
 void sendERR_INVITEONLYCHAN(Client& client, const std::string& channel)
 {
-	sendReply2(client, "473", channel, "Cannot join channel (+i)");
+	sendNumeric(client, "473", std::vector<std::string>(1, channel), "Cannot join channel (+i)");
 }
 
 void sendERR_BADCHANNELKEY(Client& client, const std::string& channel)
 {
-	sendReply(client, "475", channel + " :Cannot join channel (+k)");
+	sendNumeric(client, "475", std::vector<std::string>(1, channel), "Cannot join channel (+i)");
 }
 
 void sendRPL_CHANNELMODEIS(Client& client, const std::string& channel,
@@ -128,14 +151,18 @@ void sendRPL_CHANNELMODEIS(Client& client, const std::string& channel,
 	params.push_back(channel);
 	params.push_back(modes);
 
-	if (!args.empty())
+	/*if (!args.empty())
 	{
 		std::string a = args;
 		if (!a.empty() && a[0] == ' ')
 			a.erase(0, 1);
 		if (!a.empty())
 			params.push_back(a);
-	}
+	}*/
+	std::istringstream iss(args);
+	std::string arg;
+	while (iss >> arg)
+		params.push_back(arg);
 
 	sendNumeric(client, "324", params, "");
 }
