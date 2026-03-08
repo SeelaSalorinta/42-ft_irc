@@ -11,6 +11,32 @@ void	sendReply(Client &client, const std::string &code, const std::string &messa
 		client._server->queueMessage(&client, full);
 }
 
+void sendReply2(Client& client, const std::string& code,
+	const std::string& p1, const std::string& trailing)
+{
+	std::string full = ":" + SERVERNAME + " " + code + " " +
+		client._nickname + " " + p1 + " :" + trailing + "\r\n";
+	if (client._server)
+		client._server->queueMessage(&client, full);
+}
+
+void sendNumeric(Client& client, const std::string& code,
+	const std::vector<std::string>& params, const std::string& trailing)
+{
+	std::string full = ":" + SERVERNAME + " " + code + " " + client._nickname;
+
+	for (size_t i = 0; i < params.size(); ++i)
+		full += " " + params[i];
+
+	if (!trailing.empty())
+		full += " :" + trailing;
+
+	full += "\r\n";
+
+	if (client._server)
+		client._server->queueMessage(&client, full);
+}
+
 void	sendRPL_WELCOME(Client &client)
 {
 	sendReply(client, "001", "Welcome to " + SERVERNAME);
@@ -79,16 +105,10 @@ void sendERR_USERNOTINCHANNEL(Client& client, const std::string& nick, const std
 
 void sendERR_CHANNELISFULL(Client& client, const std::string& channel)
 {
-	sendReply(client, "471", channel + " :Cannot join channel (+l)");
-}
+	std::vector<std::string> params;
+	params.push_back(channel);
 
-void sendReply2(Client& client, const std::string& code,
-	const std::string& p1, const std::string& trailing)
-{
-	std::string full = ":" + SERVERNAME + " " + code + " " +
-		client._nickname + " " + p1 + " :" + trailing + "\r\n";
-	if (client._server)
-		client._server->queueMessage(&client, full);
+	sendNumeric(client, "471", params, "Cannot join channel (+l)");
 }
 
 void sendERR_INVITEONLYCHAN(Client& client, const std::string& channel)
@@ -99,23 +119,6 @@ void sendERR_INVITEONLYCHAN(Client& client, const std::string& channel)
 void sendERR_BADCHANNELKEY(Client& client, const std::string& channel)
 {
 	sendReply(client, "475", channel + " :Cannot join channel (+k)");
-}
-
-void sendNumeric(Client& client, const std::string& code,
-	const std::vector<std::string>& params, const std::string& trailing)
-{
-	std::string full = ":" + SERVERNAME + " " + code + " " + client._nickname;
-
-	for (size_t i = 0; i < params.size(); ++i)
-		full += " " + params[i];
-
-	if (!trailing.empty())
-		full += " :" + trailing;
-
-	full += "\r\n";
-
-	if (client._server)
-		client._server->queueMessage(&client, full);
 }
 
 void sendRPL_CHANNELMODEIS(Client& client, const std::string& channel,

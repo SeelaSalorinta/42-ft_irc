@@ -433,6 +433,9 @@ void	CommandHandler::handleJOIN(const Command &cmd)
 	if (channel->hasLimit() && channel->getClients().size() >= channel->getLimit())
 		return sendERR_CHANNELISFULL(_client, channelName);
 
+	//debug print
+	std::cout << "haslimit " << channel->hasLimit() << " channel client size " << channel->getClients().size() << " channel limit " << channel->getLimit() << std::endl;
+
 	std::string key = (cmd.params.size() >= 2) ? cmd.params[1] : "";
 	if (channel->hasKey() && key != channel->getKey())
 		return sendERR_BADCHANNELKEY(_client, channelName);
