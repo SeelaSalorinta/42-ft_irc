@@ -7,6 +7,7 @@
 #include <iostream>
 #include <cstring>
 #include <stdexcept>
+#include <cerrno>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -21,10 +22,29 @@ Server::Server(int port, const std::string &password)
 
 Server::~Server()
 {
-	if (_listenFd != -1)
-		close(_listenFd);
-}
+	for (std::map<int, Client*>::iterator it = _clients.begin(); it != _clients.end(); ++it)
+	{
+			if (it->second)
+			{
+					if (it->second->_fd != -1)
+							close(it->second->_fd);
+					delete it->second;
+			}
+	}
+	_clients.clear();
 
+	for (std::map<std::string, Channel*>::iterator it = _channels.begin(); it != _channels.end(); ++it)
+	{
+			delete it->second;
+	}
+	_channels.clear();
+
+	if (_listenFd != -1)
+	{
+			close(_listenFd);
+			_listenFd = -1;
+	}
+}
 const std::string& Server::getPassword() const
 {
 	return _password;
