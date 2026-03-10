@@ -41,14 +41,14 @@ void	sendERR_ALREADYREGISTERED(Client &client)
 	sendReply(client, "462", "You may not reregister");
 }
 
-void	sendERR_NOSUCHCHANNEL(Client &client, const std::string &command)
+void	sendERR_NOSUCHCHANNEL(Client &client, const std::string &channel)
 {
-	sendNumeric(client, "403", std::vector<std::string>(1, command), "No such channel");
+	sendNumeric(client, "403", std::vector<std::string>(1, channel), "No such channel");
 }
 
-void	sendERR_CLIENTNOTINCHANNEL(Client &client, const std::string &command)
+void	sendERR_CLIENTNOTINCHANNEL(Client &client, const std::string &channel)
 {
-	sendNumeric(client, "442", std::vector<std::string>(1, command), "Client is not part of channel");
+	sendNumeric(client, "442", std::vector<std::string>(1, channel), "Client is not part of channel");
 }
 
 void	sendERR_NEEDMOREPARAMS(Client &client, const std::string &command)

@@ -101,7 +101,6 @@ void CommandHandler::handleMODE(const Command& cmd)
 	if (cmd.params.size() < 1)
 		return sendERR_NEEDMOREPARAMS(_client, "MODE");
 
-	//ignor irssis mode send
 	const std::string& target = cmd.params[0];
 	if (!target.empty() && target[0] != '#')
 		return;
@@ -134,23 +133,11 @@ void CommandHandler::handleMODE(const Command& cmd)
 			args += " " + oss.str();
 		}
 
-		//debug print
-		std::cout
-	<< "[MODE QUERY] nick=" << _client._nickname
-	<< " channel=" << channelName
-	<< " modes=" << modes
-	<< " args=" << args
-	<< std::endl;
-
 		return sendRPL_CHANNELMODEIS(_client, channelName, modes, args);
 	}
 
 	if (!channel->isOperator(&_client))
-	{
-		//debug print delete laterr
-		std::cout << "[MODE] denied: not operator nick=" << _client._nickname << " chan=" << channelName << "\n";
 		return sendERR_CHANOPRIVSNEEDED(_client, channelName);
-	}
 
 	const std::string& modeStr = cmd.params[1];
 
@@ -350,10 +337,9 @@ void	CommandHandler::handlePART(const Command &cmd)
 	std::string reason = "";
 	if (cmd.params.size() >= 2)
 		reason = cmd.params[1];
+	
 	std::string msg = makePrefix(_client) + "PART " + channelName + " :" + reason + "\r\n";
 	channel->broadcast(msg);
-	//debug print
-	std::cout << "[PART] " << _client._nickname << " part " << channelName << "\n";
 	_client.leaveChannel(channel);
 
 }
@@ -370,8 +356,6 @@ void	CommandHandler::handlePASS(const Command &cmd)
 		return sendERR_PASSWDMISMATCH(_client);
 
 	_client._hasPass = true;
-	//debug print
-	std::cout << "[PASS] accepted for fd " << _client._fd << std::endl;
 	tryRegister();
 }
 
@@ -390,8 +374,6 @@ void	CommandHandler::handleNICK(const Command &cmd)
 
 	_client._nickname = newNick;
 	_client._hasNick = true;
-	//debug print
-	std::cout << "[NICK] set to \"" << _client._nickname << "\" for fd " << _client._fd << std::endl;
 	tryRegister();
 }
 
@@ -403,13 +385,6 @@ void	CommandHandler::handleUSER(const Command &cmd)
 	_client._username = cmd.params[0];
 	_client._realname = cmd.params[3];
 	_client._hasUser = true;
-
-	//debug print
-	std::cout << "[USER] set to username \""
-			<< _client._username
-			<< "\" realname \""
-			<< _client._realname
-			<< "\"\n";
 
 	tryRegister();
 }
@@ -433,23 +408,20 @@ void	CommandHandler::handleJOIN(const Command &cmd)
 	if (channel->hasLimit() && channel->getClients().size() >= channel->getLimit())
 		return sendERR_CHANNELISFULL(_client, channelName);
 
-	//debug print
-	std::cout << "haslimit " << channel->hasLimit() << " channel client size " << channel->getClients().size() << " channel limit " << channel->getLimit() << std::endl;
-
 	std::string key = (cmd.params.size() >= 2) ? cmd.params[1] : "";
 	if (channel->hasKey() && key != channel->getKey())
 		return sendERR_BADCHANNELKEY(_client, channelName);
 
 	channel->addClient(&_client);
 	_client.joinChannel(channel);
+	
 	if (channel->inviteOnly())
 		channel->consumeInvite(_client._nickname);	
 	if (firstJoiner)
 		channel->addOperator(&_client);
+	
 	std::string msg = makePrefix(_client) + "JOIN " + channelName + "\r\n";
 	channel->broadcast(msg);
-	//debug print
-	std::cout << "[JOIN] " << _client._nickname << " joined " << channelName << "\n";
 }
 
 void CommandHandler::handleTOPIC(const Command& cmd)
@@ -544,8 +516,6 @@ void	CommandHandler::handlePING(const Command &cmd)
 
 	std::string reply = "PONG " + cmd.params[0] + "\r\n";
 	_server.queueMessage(&_client, reply);
-	//debug
-	std::cout << "[PING] from fd " << _client._fd << " -> reply \"" << reply << "\"\n";
 }
 
 void	CommandHandler::tryRegister()
@@ -557,6 +527,4 @@ void	CommandHandler::tryRegister()
 
 	_client._isRegistered = true;
 	sendRPL_WELCOME(_client);
-	//debug print
-	std::cout << "[REGISTER] fd " << _client._fd << " registered as " << _client._nickname << "\n";
 }

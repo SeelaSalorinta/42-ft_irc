@@ -6,12 +6,12 @@ SRC_DIR := src
 INC_DIR := include
 
 SRC := $(SRC_DIR)/main.cpp \
-       $(SRC_DIR)/Server.cpp \
-	   $(SRC_DIR)/Parser.cpp \
-	   $(SRC_DIR)/Replies.cpp \
-	   $(SRC_DIR)/Channel.cpp \
-	   $(SRC_DIR)/CommandHandler.cpp \
-	   $(SRC_DIR)/Client.cpp
+		$(SRC_DIR)/Server.cpp \
+		$(SRC_DIR)/Parser.cpp \
+		$(SRC_DIR)/Replies.cpp \
+		$(SRC_DIR)/Channel.cpp \
+		$(SRC_DIR)/CommandHandler.cpp \
+		$(SRC_DIR)/Client.cpp
 OBJ := $(SRC:.cpp=.o)
 
 all: $(NAME)

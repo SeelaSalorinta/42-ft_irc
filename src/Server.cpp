@@ -85,7 +85,6 @@ void Server::setupListeningSocket()
 	pfd.revents = 0;
 	_pollFds.push_back(pfd);
 
-	//debug print
 	std::cout << "Listening on port " << _port << std::endl;
 }
 
@@ -159,9 +158,6 @@ void Server::acceptNewClients()
 		pfd.events = POLLIN | POLLOUT;
 		pfd.revents = 0;
 		_pollFds.push_back(pfd);
-
-		//debug print
-		std::cout << "Client connected fd=" << clientFd << std::endl;
 	}
 }
 
@@ -201,8 +197,6 @@ void Server::handleClient(std::size_t index)
 		if (line.empty())
 			continue;
 	
-		//debug print!
-		std::cout << "Received line " << line << std::endl;
 		Command cmd = parseCommand(line);
 		CommandHandler handler(*this, *client);
 		handler.handleCommand(cmd);
@@ -211,8 +205,6 @@ void Server::handleClient(std::size_t index)
 
 void	Server::dropClient(int fd, const char *reason)
 {
-	//debug print??
-	std::cout << "Closing fd=" << fd << " (" << reason << ")" << std::endl;
 	close(fd);
 	for (std::vector<struct pollfd>::iterator it = _pollFds.begin(); it != _pollFds.end(); ++it)
 	{

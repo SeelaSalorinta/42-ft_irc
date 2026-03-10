@@ -18,13 +18,11 @@ static bool parsePort(const char *str, int &port)
 	long value = std::strtol(str, &end, 10);
 
 	if (str == end)
-		return false; // no digits at all
-
+		return false; 
 	if (*end != '\0')
-		return false; // extra junk after number
-
+		return false;
 	if (errno == ERANGE || value < 1 || value > 65535)
-		return false; // out of valid port range
+		return false;
 
 	port = static_cast<int>(value);
 	return true;

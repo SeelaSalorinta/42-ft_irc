@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 #include <set>
-#include <sys/socket.h> // send
+#include <sys/socket.h>
 #include <algorithm>
 
 class Client;

@@ -2,7 +2,7 @@
 
 #include <iostream>
 #include <sstream>
-#include <sys/socket.h> // send
+#include <sys/socket.h>
 
 class Server;
 class Client;
