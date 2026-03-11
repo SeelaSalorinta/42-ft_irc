@@ -23,9 +23,10 @@ class Server
 		void setupListeningSocket();
 		void eventLoop();
 		void acceptNewClients();
-		void handleClient(std::size_t index);
-		void handleWritable(std::size_t index);
-		void dropClient(int fd, const char *reason);
+			void handleClient(std::size_t index);
+			void handleWritable(std::size_t index);
+			void dropClient(int fd);
+			void setClientPollout(int fd, bool enabled);
 
 		static bool setNonBlocking(int fd);
 

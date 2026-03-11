@@ -55,6 +55,20 @@ bool Server::setNonBlocking(int fd)
 	return fcntl(fd, F_SETFL, O_NONBLOCK) != -1;
 }
 
+void Server::setClientPollout(int fd, bool enabled)
+{
+	for (std::size_t i = 1; i < _pollFds.size(); ++i)
+	{
+		if (_pollFds[i].fd != fd)
+			continue;
+		if (enabled)
+			_pollFds[i].events |= POLLOUT;
+		else
+			_pollFds[i].events &= ~POLLOUT;
+		return;
+	}
+}
+
 void Server::setupListeningSocket()
 {
 	_listenFd = socket(AF_INET, SOCK_STREAM, 0);
@@ -116,7 +130,7 @@ void Server::eventLoop()
 			
 			if (_pollFds[i].revents & (POLLHUP | POLLERR | POLLNVAL))
 			{
-				dropClient(fd, "disconnect");
+				dropClient(fd);
 				continue;
 			}
 
@@ -153,12 +167,12 @@ void Server::acceptNewClients()
 
 		_clients[clientFd] = new Client(clientFd, this);
 
-		pollfd pfd;
-		pfd.fd = clientFd;
-		pfd.events = POLLIN | POLLOUT;
-		pfd.revents = 0;
-		_pollFds.push_back(pfd);
-	}
+			pollfd pfd;
+			pfd.fd = clientFd;
+			pfd.events = POLLIN;
+			pfd.revents = 0;
+			_pollFds.push_back(pfd);
+		}
 }
 
 void Server::handleClient(std::size_t index)
@@ -167,7 +181,7 @@ void Server::handleClient(std::size_t index)
 	char buf[1024];
 
 	if (_clients.count(fd) == 0) {
-		dropClient(fd, "client not found");
+		dropClient(fd);
 		return;
 	}
 	
@@ -177,7 +191,7 @@ void Server::handleClient(std::size_t index)
 	if (n <= 0)
 	{
 		if (n == 0 || (errno != EAGAIN && errno != EWOULDBLOCK))
-			dropClient(fd, "recv error");
+			dropClient(fd);
 		return;
 	}
 
@@ -203,7 +217,7 @@ void Server::handleClient(std::size_t index)
 	}
 }
 
-void	Server::dropClient(int fd, const char *reason)
+void	Server::dropClient(int fd)
 {
 	close(fd);
 	for (std::vector<struct pollfd>::iterator it = _pollFds.begin(); it != _pollFds.end(); ++it)
@@ -245,11 +259,12 @@ void Server::handleWritable(std::size_t index)
 		{
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
 				return;
-			dropClient(fd, "send error");
+			dropClient(fd);
 			return;
 		}
 		client->_sendBuffer.erase(0, n);
 	}
+	setClientPollout(fd, false);
 }
 
 Client* Server::getClientByNick(const std::string& nick)
@@ -276,14 +291,18 @@ Channel*	Server::getChannel(const std::string &name)
 
 void Server::disconnectClient(int fd, const std::string& reason)
 {
-	dropClient(fd, reason.c_str());
+	(void)reason;
+	dropClient(fd);
 }
 
 void Server::queueMessage(Client* client, const std::string& data)
 {
 	if (!client)
 		return;
+	bool wasEmpty = client->_sendBuffer.empty();
 	client->_sendBuffer.append(data);
+	if (wasEmpty && !client->_sendBuffer.empty())
+		setClientPollout(client->_fd, true);
 }
 
 void Server::destroyChannelIfEmpty(Channel* channel)
@@ -300,4 +319,3 @@ void Server::destroyChannelIfEmpty(Channel* channel)
 
 	delete channel;
 }
-
