@@ -23,15 +23,14 @@ class Server
 		void setupListeningSocket();
 		void eventLoop();
 		void acceptNewClients();
-			void handleClient(std::size_t index);
-			void handleWritable(std::size_t index);
-			void dropClient(int fd);
-			void setClientPollout(int fd, bool enabled);
+		void handleClient(std::size_t index);
+		void handleWritable(std::size_t index);
+		void dropClient(int fd, const char *reason);
 
 		static bool setNonBlocking(int fd);
 
 		std::map<std::string, Channel*> _channels;
-		std::map<int, Client*> _clients; //servers clientS
+		std::map<int, Client*> _clients;
 
 	public:
 		explicit Server(int port, const std::string &password);

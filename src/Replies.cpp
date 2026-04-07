@@ -8,7 +8,9 @@ static const std::string SERVERNAME = "ft_irc";
 void sendNumeric(Client& client, const std::string& code,
 	const std::vector<std::string>& params, const std::string& trailing)
 {
-	std::string full = ":" + SERVERNAME + " " + code + " " + client._nickname;
+	std::string target = client._nickname.empty() ? "*" : client._nickname;
+	std::string full = ":" + SERVERNAME + " " + code + " " + target;
+
 
 	for (size_t i = 0; i < params.size(); ++i)
 		full += " " + params[i];
@@ -24,9 +26,8 @@ void sendNumeric(Client& client, const std::string& code,
 
 void sendReply(Client &client, const std::string &code, const std::string &trailing)
 {
-	std::string full = ":" + SERVERNAME + " " + code + " " +
-		client._nickname + " :" + trailing + "\r\n";
-
+	std::string target = client._nickname.empty() ? "*" : client._nickname;
+	std::string full = ":" + SERVERNAME + " " + code + " " + target + " :" + trailing + "\r\n";
 	if (client._server)
 		client._server->queueMessage(&client, full);
 }
@@ -115,7 +116,7 @@ void sendERR_INVITEONLYCHAN(Client& client, const std::string& channel)
 
 void sendERR_BADCHANNELKEY(Client& client, const std::string& channel)
 {
-	sendNumeric(client, "475", std::vector<std::string>(1, channel), "Cannot join channel (+i)");
+	sendNumeric(client, "475", std::vector<std::string>(1, channel), "Cannot join channel (+k)");
 }
 
 void sendRPL_CHANNELMODEIS(Client& client, const std::string& channel,

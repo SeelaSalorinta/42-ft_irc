@@ -45,6 +45,7 @@ Server::~Server()
 			_listenFd = -1;
 	}
 }
+
 const std::string& Server::getPassword() const
 {
 	return _password;
@@ -53,20 +54,6 @@ const std::string& Server::getPassword() const
 bool Server::setNonBlocking(int fd)
 {
 	return fcntl(fd, F_SETFL, O_NONBLOCK) != -1;
-}
-
-void Server::setClientPollout(int fd, bool enabled)
-{
-	for (std::size_t i = 1; i < _pollFds.size(); ++i)
-	{
-		if (_pollFds[i].fd != fd)
-			continue;
-		if (enabled)
-			_pollFds[i].events |= POLLOUT;
-		else
-			_pollFds[i].events &= ~POLLOUT;
-		return;
-	}
 }
 
 void Server::setupListeningSocket()
@@ -130,7 +117,7 @@ void Server::eventLoop()
 			
 			if (_pollFds[i].revents & (POLLHUP | POLLERR | POLLNVAL))
 			{
-				dropClient(fd);
+				dropClient(fd, "disconnect");
 				continue;
 			}
 
@@ -164,15 +151,15 @@ void Server::acceptNewClients()
 			continue;
 		}
 
-
 		_clients[clientFd] = new Client(clientFd, this);
+		std::cout << "Client connected on fd " << clientFd << std::endl;
 
-			pollfd pfd;
-			pfd.fd = clientFd;
-			pfd.events = POLLIN;
-			pfd.revents = 0;
-			_pollFds.push_back(pfd);
-		}
+		pollfd pfd;
+		pfd.fd = clientFd;
+		pfd.events = POLLIN | POLLOUT;
+		pfd.revents = 0;
+		_pollFds.push_back(pfd);
+	}
 }
 
 void Server::handleClient(std::size_t index)
@@ -181,7 +168,7 @@ void Server::handleClient(std::size_t index)
 	char buf[1024];
 
 	if (_clients.count(fd) == 0) {
-		dropClient(fd);
+		dropClient(fd, "client not found");
 		return;
 	}
 	
@@ -190,8 +177,10 @@ void Server::handleClient(std::size_t index)
 	ssize_t n = recv(fd, buf, sizeof(buf), 0);
 	if (n <= 0)
 	{
-		if (n == 0 || (errno != EAGAIN && errno != EWOULDBLOCK))
-			dropClient(fd);
+		if (n == 0)
+			dropClient(fd, "connection closed");
+		else if (errno != EAGAIN && errno != EWOULDBLOCK)
+			dropClient(fd, "recv error");
 		return;
 	}
 
@@ -201,24 +190,32 @@ void Server::handleClient(std::size_t index)
 		std::size_t pos = client->_recvBuffer.find('\n');
 		if (pos == std::string::npos)
 			break;
-	
+
 		std::string line = client->_recvBuffer.substr(0, pos);
 		client->_recvBuffer.erase(0, pos + 1);
-	
+
 		if (!line.empty() && line[line.size() - 1] == '\r')
 			line.erase(line.size() - 1);
-	
+
 		if (line.empty())
 			continue;
-	
+
 		Command cmd = parseCommand(line);
 		CommandHandler handler(*this, *client);
 		handler.handleCommand(cmd);
+
+		if (_clients.find(fd) == _clients.end())
+			return;
 	}
 }
 
-void	Server::dropClient(int fd)
+void	Server::dropClient(int fd, const char *reason)
 {
+	std::cout << "Client on fd " << fd << " disconnected";
+	if (reason)
+		std::cout << " (" << reason << ")";
+	std::cout << std::endl;
+
 	close(fd);
 	for (std::vector<struct pollfd>::iterator it = _pollFds.begin(); it != _pollFds.end(); ++it)
 	{
@@ -259,12 +256,11 @@ void Server::handleWritable(std::size_t index)
 		{
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
 				return;
-			dropClient(fd);
+			dropClient(fd, "send error");
 			return;
 		}
 		client->_sendBuffer.erase(0, n);
 	}
-	setClientPollout(fd, false);
 }
 
 Client* Server::getClientByNick(const std::string& nick)
@@ -291,18 +287,14 @@ Channel*	Server::getChannel(const std::string &name)
 
 void Server::disconnectClient(int fd, const std::string& reason)
 {
-	(void)reason;
-	dropClient(fd);
+	dropClient(fd, reason.c_str());
 }
 
 void Server::queueMessage(Client* client, const std::string& data)
 {
 	if (!client)
 		return;
-	bool wasEmpty = client->_sendBuffer.empty();
 	client->_sendBuffer.append(data);
-	if (wasEmpty && !client->_sendBuffer.empty())
-		setClientPollout(client->_fd, true);
 }
 
 void Server::destroyChannelIfEmpty(Channel* channel)

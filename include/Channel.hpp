@@ -1,10 +1,12 @@
 #pragma once 
 
+#include "Client.hpp"
 #include <string>
 #include <vector>
 #include <set>
 #include <sys/socket.h>
 #include <algorithm>
+#include <iostream>
 
 class Client;
 

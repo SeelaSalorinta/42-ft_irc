@@ -21,7 +21,9 @@ static bool parsePort(const char *str, int &port)
 		return false; 
 	if (*end != '\0')
 		return false;
-	if (errno == ERANGE || value < 1 || value > 65535)
+	if (errno == ERANGE)
+		return false;
+	if (value < 1024 || value > 65535)
 		return false;
 
 	port = static_cast<int>(value);

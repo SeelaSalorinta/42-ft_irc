@@ -10,18 +10,27 @@ static std::string	makePrefix(const Client& c);
 CommandHandler::CommandHandler(Server &server, Client &client)
 	: _server(server), _client(client) {}
 
+
+std::string	makePrefix(const Client& c)
+{
+	return ":" + c._nickname + "!" + c._username + "@localhost ";
+}
+
+void	CommandHandler::tryRegister()
+{
+	if (_client._isRegistered)
+		return;
+	if (!_client._hasPass || !_client._hasNick || !_client._hasUser)
+		return;
+
+	_client._isRegistered = true;
+	sendRPL_WELCOME(_client);
+}
+
 void	CommandHandler::handleCommand(const Command &cmd)
 {
-	if (cmd.name == "WHOIS")
+	if (cmd.name == "WHOIS" || cmd.name == "CAP")
 		return;
-	
-	if (cmd.name == "CAP")
-	{
-		std::string nick = _client._hasNick ? _client._nickname : "*";
-		std::string msg = ":ft_irc CAP " + nick + " LS :\r\n";
-		_server.queueMessage(&_client, msg);
-		return;
-	}
 
 	if (cmd.name == "PASS")
 		return handlePASS(cmd);
@@ -46,18 +55,18 @@ void	CommandHandler::handleCommand(const Command &cmd)
 
 	struct Entry { const char* name; void (CommandHandler::*fn)(const Command&); };
 	static const Entry table[] = {
-		{"NICK", &CommandHandler::handleNICK},
-		{"USER", &CommandHandler::handleUSER},
+		{"INVITE", &CommandHandler::handleINVITE},
 		{"JOIN", &CommandHandler::handleJOIN},
+		{"KICK", &CommandHandler::handleKICK},
+		{"MODE", &CommandHandler::handleMODE},
+		{"NICK", &CommandHandler::handleNICK},
+		{"NOTICE", &CommandHandler::handleNOTICE},
 		{"PART", &CommandHandler::handlePART},
 		{"PING", &CommandHandler::handlePING},
-		{"INVITE", &CommandHandler::handleINVITE},
-		{"KICK", &CommandHandler::handleKICK},
-		{"TOPIC", &CommandHandler::handleTOPIC},
 		{"PRIVMSG", &CommandHandler::handlePRIVMSG},
-		{"NOTICE", &CommandHandler::handleNOTICE},
-		{"MODE", &CommandHandler::handleMODE},
 		{"QUIT", &CommandHandler::handleQUIT},
+		{"TOPIC", &CommandHandler::handleTOPIC},
+		{"USER", &CommandHandler::handleUSER},
 	};
 
 	for (std::size_t i = 0; i < sizeof(table) / sizeof(table[0]); ++i)
@@ -69,32 +78,98 @@ void	CommandHandler::handleCommand(const Command &cmd)
 	sendReply(_client, "421", cmd.name + " :Unknown command");
 }
 
-void CommandHandler::handleQUIT(const Command& cmd)
+void CommandHandler::handleINVITE(const Command& cmd)
 {
-	std::string reason = "Client Quit";
-	if (!cmd.params.empty())
-		reason = cmd.params[0];
+	if (cmd.params.size() < 2)
+		return sendERR_NEEDMOREPARAMS(_client, "INVITE");
 
-	std::vector<Channel*> chans = _client.getJoinedChannels();
-	std::string msg = makePrefix(_client) + "QUIT :" + reason + "\r\n";
+	const std::string& nick = cmd.params[0];
+	const std::string& channelName = cmd.params[1];
 
-	for (std::size_t i = 0; i < chans.size(); ++i)
-	{
-		Channel* ch = chans[i];
-		if (ch && ch->hasClient(&_client))
-			ch->broadcastExcept(msg, &_client);
-		_client.leaveChannel(ch);
-	}
+	Channel* channel = _server.getChannel(channelName);
+	if (!channel)
+		return sendERR_NOSUCHCHANNEL(_client, channelName);
+	if (!channel->hasClient(&_client))
+		return sendERR_CLIENTNOTINCHANNEL(_client, channelName);
+	if (!channel->isOperator(&_client))
+		return sendERR_CHANOPRIVSNEEDED(_client, channelName);
 
-	_server.disconnectClient(_client._fd, reason);
+	Client* target = _server.getClientByNick(nick);
+	if (!target)
+		return sendERR_NOSUCHNICK(_client, nick);
+	if (channel->hasClient(target))
+		return sendReply(_client, "443", nick + " " + channelName + " :is already on channel");
+
+	channel->inviteNick(nick);
+	std::string inviteMsg = makePrefix(_client) + "INVITE " + nick + " :" + channelName + "\r\n";
+	_server.queueMessage(target, inviteMsg);
+	sendReply(_client, "341", nick + " " + channelName);
 }
 
-
-std::string	makePrefix(const Client& c)
+void	CommandHandler::handleJOIN(const Command &cmd)
 {
-	return ":" + c._nickname + "!" + c._username + "@localhost ";
+	if (cmd.params.empty())
+		return sendERR_NEEDMOREPARAMS(_client, "JOIN");
+
+	std::string channelName = cmd.params[0];
+	if (channelName.empty() || channelName[0] != '#')
+		return sendERR_NOSUCHCHANNEL(_client, channelName);
+	Channel	*channel = _server.getOrCreateChannel(channelName);
+	if (channel->hasClient(&_client))
+		return;
+	bool firstJoiner = channel->getClients().empty();
+
+	if (channel->inviteOnly() && !channel->isInvited(_client._nickname))
+		return sendERR_INVITEONLYCHAN(_client, channelName);
+
+	if (channel->hasLimit() && channel->getClients().size() >= channel->getLimit())
+		return sendERR_CHANNELISFULL(_client, channelName);
+
+	std::string key = (cmd.params.size() >= 2) ? cmd.params[1] : "";
+	if (channel->hasKey() && key != channel->getKey())
+		return sendERR_BADCHANNELKEY(_client, channelName);
+
+	channel->addClient(&_client);
+	_client.joinChannel(channel);
+	
+	if (channel->inviteOnly())
+		channel->consumeInvite(_client._nickname);	
+	if (firstJoiner)
+		channel->addOperator(&_client);
+	if (!channel->getTopic().empty())
+		sendNumeric(_client, "332", std::vector<std::string>(1, channelName), channel->getTopic());
+
+	std::string msg = makePrefix(_client) + "JOIN " + channelName + "\r\n";
+	channel->broadcast(msg);
 }
 
+void CommandHandler::handleKICK(const Command& cmd)
+{
+	if (cmd.params.size() < 2)
+		return sendERR_NEEDMOREPARAMS(_client, "KICK");
+
+	const std::string& channelName = cmd.params[0];
+	const std::string& nick = cmd.params[1];
+	const std::string reason = (cmd.params.size() >= 3) ? cmd.params[2] : "Kicked";
+
+	Channel* channel = _server.getChannel(channelName);
+	if (!channel)
+		return sendERR_NOSUCHCHANNEL(_client, channelName);
+	if (!channel->hasClient(&_client))
+		return sendERR_CLIENTNOTINCHANNEL(_client, channelName);
+	if (!channel->isOperator(&_client))
+		return sendERR_CHANOPRIVSNEEDED(_client, channelName);
+
+	Client* target = _server.getClientByNick(nick);
+	if (!target)
+		return sendERR_NOSUCHNICK(_client, nick);
+	if (!channel->hasClient(target))
+		return sendERR_USERNOTINCHANNEL(_client, nick, channelName);
+
+	std::string msg = makePrefix(_client) + "KICK " + channelName + " " + nick + " :" + reason + "\r\n";
+	channel->broadcast(msg);
+	target->leaveChannel(channel);
+}
 
 void CommandHandler::handleMODE(const Command& cmd)
 {
@@ -236,7 +311,7 @@ void CommandHandler::handleMODE(const Command& cmd)
 				minusModes += 'o';
 			}
 			appliedArgs += " " + nick;
-			}
+		}
 		else
 			return sendERR_UNKNOWNMODE(_client, m, channelName);
 	}
@@ -252,6 +327,40 @@ void CommandHandler::handleMODE(const Command& cmd)
 	
 	std::string msg = makePrefix(_client) + "MODE " + channelName + " " + appliedModes + appliedArgs + "\r\n";
 	channel->broadcast(msg);
+}
+
+void CommandHandler::handleNICK(const Command& cmd)
+{
+	if (cmd.params.empty())
+		return sendERR_NEEDMOREPARAMS(_client, "NICK");
+
+	const std::string& newNick = cmd.params[0];
+	Client* existing = _server.getClientByNick(newNick);
+	if (existing && existing != &_client)
+		return sendNumeric(_client, "433", std::vector<std::string>(1, newNick),
+			"Nickname is already in use");
+
+	bool hadNickBefore = _client._hasNick;
+	std::string oldNick = _client._nickname;
+	std::string oldUser = _client._username;
+
+	_client._nickname = newNick;
+	_client._hasNick = true;
+
+	if (_client._isRegistered && hadNickBefore)
+	{
+		std::string msg = ":" + oldNick + "!" + oldUser + "@localhost NICK :" + newNick + "\r\n";
+		_server.queueMessage(&_client, msg);
+
+		std::vector<Channel*> chans = _client.getJoinedChannels();
+		for (std::size_t i = 0; i < chans.size(); ++i)
+		{
+			if (chans[i])
+				chans[i]->broadcastExcept(msg, &_client);
+		}
+	}
+
+	tryRegister();
 }
 
 void CommandHandler::handleNOTICE(const Command& cmd)
@@ -278,46 +387,12 @@ void CommandHandler::handleNOTICE(const Command& cmd)
 	}
 
 	Client* dest = _server.getClientByNick(target);
-	if (!dest) return;
+	if (!dest)
+		return;
 
 	std::string msg = makePrefix(_client) + "NOTICE " + target + " :" + message + "\r\n";
 	_server.queueMessage(dest, msg);
 }
-
-void CommandHandler::handlePRIVMSG(const Command &cmd)
-{
-	if (cmd.params.size() < 1)
-		return sendERR_NORECIPIENT(_client, "PRIVMSG");
-	if (cmd.params.size() < 2)
-		return sendERR_NOTEXTTOSEND(_client);
-
-	const std::string& target = cmd.params[0];
-	const std::string& message = cmd.params[1];
-
-	if (target.empty())
-		return sendERR_NORECIPIENT(_client, "PRIVMSG");
-
-	if (target[0] == '#')
-	{
-		Channel* channel = _server.getChannel(target);
-		if (!channel)
-			return sendERR_NOSUCHCHANNEL(_client, target);
-		if (!channel->hasClient(&_client))
-			return sendERR_CANNOTSENDTOCHAN(_client, target);
-
-		std::string msg = makePrefix(_client) + "PRIVMSG " + target + " :" + message + "\r\n";
-		channel->broadcastExcept(msg, &_client);
-		return;
-	}
-
-	Client* dest = _server.getClientByNick(target);
-	if (!dest)
-		return sendERR_NOSUCHNICK(_client, target);
-
-	std::string msg = makePrefix(_client) + "PRIVMSG " + target + " :" + message + "\r\n";
-	_server.queueMessage(dest, msg);
-}
-
 
 void	CommandHandler::handlePART(const Command &cmd)
 {
@@ -359,78 +434,78 @@ void	CommandHandler::handlePASS(const Command &cmd)
 	tryRegister();
 }
 
-void	CommandHandler::handleNICK(const Command &cmd)
-{
-	if (cmd.params.size() != 1)
-		return sendERR_NEEDMOREPARAMS(_client, "NICK");
-
-	const std::string& newNick = cmd.params[0];
-	Client* existing = _server.getClientByNick(newNick);
-	if (existing && existing != &_client)
-	{
-		std::string cur = _client._hasNick ? _client._nickname : "*";
-		return sendReply(_client, "433", cur + " " + newNick + " :Nickname is already in use");
-	}
-
-	_client._nickname = newNick;
-	_client._hasNick = true;
-	tryRegister();
-}
-
-void	CommandHandler::handleUSER(const Command &cmd)
-{
-	if (cmd.params.size() != 4)
-	return sendERR_NEEDMOREPARAMS(_client, "USER");
-
-	_client._username = cmd.params[0];
-	_client._realname = cmd.params[3];
-	_client._hasUser = true;
-
-	tryRegister();
-}
-
-void	CommandHandler::handleJOIN(const Command &cmd)
+void	CommandHandler::handlePING(const Command &cmd)
 {
 	if (cmd.params.empty())
-		return sendERR_NEEDMOREPARAMS(_client, "JOIN");
+		return sendERR_NEEDMOREPARAMS(_client, "PING");
 
-	std::string channelName = cmd.params[0];
-	if (channelName.empty() || channelName[0] != '#')
-		return sendERR_NOSUCHCHANNEL(_client, channelName);
-	Channel	*channel = _server.getOrCreateChannel(channelName);
-	if (channel->hasClient(&_client))
+	std::string reply = "PONG " + cmd.params[0] + "\r\n";
+	_server.queueMessage(&_client, reply);
+}
+
+void CommandHandler::handlePRIVMSG(const Command &cmd)
+{
+	if (cmd.params.size() < 1)
+		return sendERR_NORECIPIENT(_client, "PRIVMSG");
+	if (cmd.params.size() < 2)
+		return sendERR_NOTEXTTOSEND(_client);
+
+	const std::string& target = cmd.params[0];
+	const std::string& message = cmd.params[1];
+
+	if (target.empty())
+		return sendERR_NORECIPIENT(_client, "PRIVMSG");
+
+	if (target[0] == '#')
+	{
+		Channel* channel = _server.getChannel(target);
+		if (!channel)
+			return sendERR_NOSUCHCHANNEL(_client, target);
+		if (!channel->hasClient(&_client))
+			return sendERR_CANNOTSENDTOCHAN(_client, target);
+
+		std::string msg = makePrefix(_client) + "PRIVMSG " + target + " :" + message + "\r\n";
+		channel->broadcastExcept(msg, &_client);
 		return;
-	bool firstJoiner = channel->getClients().empty();
+	}
 
-	if (channel->inviteOnly() && !channel->isInvited(_client._nickname))
-		return sendERR_INVITEONLYCHAN(_client, channelName);
+	Client* dest = _server.getClientByNick(target);
+	if (!dest)
+		return sendERR_NOSUCHNICK(_client, target);
 
-	if (channel->hasLimit() && channel->getClients().size() >= channel->getLimit())
-		return sendERR_CHANNELISFULL(_client, channelName);
+	std::string msg = makePrefix(_client) + "PRIVMSG " + target + " :" + message + "\r\n";
+	_server.queueMessage(dest, msg);
+}
 
-	std::string key = (cmd.params.size() >= 2) ? cmd.params[1] : "";
-	if (channel->hasKey() && key != channel->getKey())
-		return sendERR_BADCHANNELKEY(_client, channelName);
 
-	channel->addClient(&_client);
-	_client.joinChannel(channel);
-	
-	if (channel->inviteOnly())
-		channel->consumeInvite(_client._nickname);	
-	if (firstJoiner)
-		channel->addOperator(&_client);
-	
-	std::string msg = makePrefix(_client) + "JOIN " + channelName + "\r\n";
-	channel->broadcast(msg);
+void CommandHandler::handleQUIT(const Command& cmd)
+{
+	std::string reason = "Client Quit";
+	if (!cmd.params.empty())
+		reason = cmd.params[0];
+
+	std::vector<Channel*> chans = _client.getJoinedChannels();
+	std::string msg = makePrefix(_client) + "QUIT :" + reason + "\r\n";
+
+	for (std::size_t i = 0; i < chans.size(); ++i)
+	{
+		Channel* ch = chans[i];
+		if (ch && ch->hasClient(&_client))
+			ch->broadcastExcept(msg, &_client);
+		_client.leaveChannel(ch);
+	}
+
+	_server.disconnectClient(_client._fd, reason);
 }
 
 void CommandHandler::handleTOPIC(const Command& cmd)
 {
 	if (cmd.params.empty())
 		return sendERR_NEEDMOREPARAMS(_client, "TOPIC");
-
+	
 	const std::string& channelName = cmd.params[0];
 	Channel* channel = _server.getChannel(channelName);
+
 	if (!channel)
 		return sendERR_NOSUCHCHANNEL(_client, channelName);
 	if (!channel->hasClient(&_client))
@@ -453,78 +528,16 @@ void CommandHandler::handleTOPIC(const Command& cmd)
 	channel->broadcast(msg);
 }
 
-void CommandHandler::handleINVITE(const Command& cmd)
-{
-	if (cmd.params.size() < 2)
-		return sendERR_NEEDMOREPARAMS(_client, "INVITE");
-
-	const std::string& nick = cmd.params[0];
-	const std::string& channelName = cmd.params[1];
-
-	Channel* channel = _server.getChannel(channelName);
-	if (!channel)
-		return sendERR_NOSUCHCHANNEL(_client, channelName);
-	if (!channel->hasClient(&_client))
-		return sendERR_CLIENTNOTINCHANNEL(_client, channelName);
-	if (!channel->isOperator(&_client))
-		return sendERR_CHANOPRIVSNEEDED(_client, channelName);
-
-	Client* target = _server.getClientByNick(nick);
-	if (!target)
-		return sendERR_NOSUCHNICK(_client, nick);
-	if (channel->hasClient(target))
-		return sendReply(_client, "443", nick + " " + channelName + " :is already on channel");
-
-	channel->inviteNick(nick);
-	std::string inviteMsg = makePrefix(_client) + "INVITE " + nick + " " + channelName + "\r\n";
-	_server.queueMessage(target, inviteMsg);
-	sendReply(_client, "341", nick + " " + channelName);
-}
-
-void CommandHandler::handleKICK(const Command& cmd)
-{
-	if (cmd.params.size() < 2)
-		return sendERR_NEEDMOREPARAMS(_client, "KICK");
-
-	const std::string& channelName = cmd.params[0];
-	const std::string& nick = cmd.params[1];
-	const std::string reason = (cmd.params.size() >= 3) ? cmd.params[2] : "Kicked";
-
-	Channel* channel = _server.getChannel(channelName);
-	if (!channel)
-		return sendERR_NOSUCHCHANNEL(_client, channelName);
-	if (!channel->hasClient(&_client))
-		return sendERR_CLIENTNOTINCHANNEL(_client, channelName);
-	if (!channel->isOperator(&_client))
-		return sendERR_CHANOPRIVSNEEDED(_client, channelName);
-
-	Client* target = _server.getClientByNick(nick);
-	if (!target)
-		return sendERR_NOSUCHNICK(_client, nick);
-	if (!channel->hasClient(target))
-		return sendERR_USERNOTINCHANNEL(_client, nick, channelName);
-
-	std::string msg = makePrefix(_client) + "KICK " + channelName + " " + nick + " :" + reason + "\r\n";
-	channel->broadcast(msg);
-	target->leaveChannel(channel);
-}
-
-void	CommandHandler::handlePING(const Command &cmd)
-{
-	if (cmd.params.empty())
-		return sendERR_NEEDMOREPARAMS(_client, "PING");
-
-	std::string reply = "PONG " + cmd.params[0] + "\r\n";
-	_server.queueMessage(&_client, reply);
-}
-
-void	CommandHandler::tryRegister()
+void	CommandHandler::handleUSER(const Command &cmd)
 {
 	if (_client._isRegistered)
-		return;
-	if (!_client._hasPass || !_client._hasNick || !_client._hasUser)
-		return;
+		return sendERR_ALREADYREGISTERED(_client);
+	if (cmd.params.size() != 4)
+		return sendERR_NEEDMOREPARAMS(_client, "USER");
 
-	_client._isRegistered = true;
-	sendRPL_WELCOME(_client);
+	_client._username = cmd.params[0];
+	_client._realname = cmd.params[3];
+	_client._hasUser = true;
+
+	tryRegister();
 }
